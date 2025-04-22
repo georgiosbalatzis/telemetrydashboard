@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/telemetrydashboard/static/js/main.aad3346b.js",
+    "index.html": "/telemetrydashboard/index.html",
+    "main.aad3346b.js.map": "/telemetrydashboard/static/js/main.aad3346b.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.aad3346b.js"
+  ]
+}
