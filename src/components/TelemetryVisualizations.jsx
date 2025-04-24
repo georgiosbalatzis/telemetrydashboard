@@ -1,3 +1,14 @@
+// Import the sample data
+import {
+    sampleMeetings,
+    sampleSessions,
+    sampleDrivers,
+    generateSampleLapData,
+    generateSampleTelemetryData,
+    generateSamplePitStops,
+    generateSampleStints
+} from '../data/sampleData';
+
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 import { Sun, Moon, Thermometer, Wind, Droplet } from 'lucide-react';
@@ -89,12 +100,22 @@ const TelemetryVisualizations = () => {
     const [error, setError] = useState(null);
     const [availableLaps, setAvailableLaps] = useState([]);
 
+    // At the top of your component
+    const [useSampleData, setUseSampleData] = useState(true); // Set to true to use sample data
+
+
     // Fetch meetings (Grand Prix events)
     const fetchMeetings = async () => {
         try {
             setIsLoading(true);
-            const response = await fetch('https://api.openf1.org/v1/meetings');
-            const data = await response.json();
+
+            let data;
+            if (useSampleData) {
+                data = sampleMeetings;
+            } else {
+                const response = await fetch('https://api.openf1.org/v1/meetings');
+                data = await response.json();
+            }
             setMeetings(data);
 
             // Use circuit_short_name to get unique circuit names
@@ -127,8 +148,17 @@ const TelemetryVisualizations = () => {
 
         try {
             setIsLoading(true);
-            const response = await fetch(`https://api.openf1.org/v1/sessions?circuit_name=${encodeURIComponent(selectedCircuit)}`);
-            const data = await response.json();
+
+            let data;
+            if (useSampleData) {
+                // Use sample data
+                data = sampleSessions[selectedCircuit] || [];
+            } else {
+                // Use real API
+                const response = await fetch(`https://api.openf1.org/v1/sessions?circuit_name=${encodeURIComponent(selectedCircuit)}`);
+                data = await response.json();
+            }
+
             setSessions(data);
 
             // Set default selected session
@@ -149,8 +179,16 @@ const TelemetryVisualizations = () => {
 
         try {
             setIsLoading(true);
-            const response = await fetch(`https://api.openf1.org/v1/drivers?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}`);
-            const data = await response.json();
+
+            let data;
+            if (useSampleData) {
+                // Use sample data
+                data = sampleDrivers[selectedCircuit]?.[selectedSession] || [];
+            } else {
+                // Use real API
+                const response = await fetch(`https://api.openf1.org/v1/drivers?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}`);
+                data = await response.json();
+            }
 
             // Format drivers data
             const driversObj = {};
@@ -159,7 +197,7 @@ const TelemetryVisualizations = () => {
                     number: driver.driver_number,
                     name: `${driver.first_name} ${driver.last_name}`,
                     team: driver.team_name,
-                    color: teamColors[driver.team_name] || "#999999",
+                    color: driver.team_color || teamColors[driver.team_name] || "#999999",
                     data: []
                 };
             });
@@ -189,9 +227,16 @@ const TelemetryVisualizations = () => {
         try {
             setIsLoading(true);
 
-            const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
-            const response = await fetch(`https://api.openf1.org/v1/laps?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
-            const data = await response.json();
+            let data;
+            if (useSampleData) {
+                // Use sample data
+                data = generateSampleLapData(selectedCircuit, selectedSession, selectedDrivers);
+            } else {
+                // Use real API
+                const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
+                const response = await fetch(`https://api.openf1.org/v1/laps?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
+                data = await response.json();
+            }
 
             setLapData(data);
 
@@ -218,9 +263,20 @@ const TelemetryVisualizations = () => {
         try {
             setIsLoading(true);
 
-            const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
-            const response = await fetch(`https://api.openf1.org/v1/car_data?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}&lap_number=${selectedLap}`);
-            const data = await response.json();
+            let data;
+            if (useSampleData) {
+                // Use sample data - generate telemetry for each selected driver
+                data = [];
+                selectedDrivers.forEach(driverId => {
+                    const driverData = generateSampleTelemetryData(selectedCircuit, selectedSession, driverId, selectedLap);
+                    data = [...data, ...driverData];
+                });
+            } else {
+                // Use real API
+                const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
+                const response = await fetch(`https://api.openf1.org/v1/car_data?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}&lap_number=${selectedLap}`);
+                data = await response.json();
+            }
 
             // Process the data and append to drivers state
             const updatedDrivers = { ...drivers };
@@ -258,9 +314,17 @@ const TelemetryVisualizations = () => {
         if (!selectedSession || !selectedCircuit || selectedDrivers.length === 0) return;
 
         try {
-            const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
-            const response = await fetch(`https://api.openf1.org/v1/pit?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
-            const data = await response.json();
+            let data;
+            if (useSampleData) {
+                // Use sample data
+                data = generateSamplePitStops(selectedCircuit, selectedSession, selectedDrivers);
+            } else {
+                // Use real API
+                const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
+                const response = await fetch(`https://api.openf1.org/v1/pit?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
+                data = await response.json();
+            }
+
             setPitStops(data);
         } catch (err) {
             setError("Error fetching pit stop data: " + err.message);
@@ -272,9 +336,17 @@ const TelemetryVisualizations = () => {
         if (!selectedSession || !selectedCircuit || selectedDrivers.length === 0) return;
 
         try {
-            const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
-            const response = await fetch(`https://api.openf1.org/v1/stints?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
-            const data = await response.json();
+            let data;
+            if (useSampleData) {
+                // Use sample data
+                data = generateSampleStints(selectedCircuit, selectedSession, selectedDrivers);
+            } else {
+                // Use real API
+                const driverParams = selectedDrivers.map(num => `driver_number=${num}`).join('&');
+                const response = await fetch(`https://api.openf1.org/v1/stints?circuit_name=${encodeURIComponent(selectedCircuit)}&session_name=${encodeURIComponent(selectedSession)}&${driverParams}`);
+                data = await response.json();
+            }
+
             setStints(data);
         } catch (err) {
             setError("Error fetching stint data: " + err.message);
@@ -625,6 +697,14 @@ const TelemetryVisualizations = () => {
                 }}
             >
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+
+            {/*Use Sample data*/}
+            <button
+                onClick={() => setUseSampleData(!useSampleData)}
+                className="px-3 py-1 rounded bg-cyan-600 text-white text-sm"
+            >
+                {useSampleData ? "Using Sample Data" : "Using Real API"}
             </button>
 
             {/* Weather toggle button */}
