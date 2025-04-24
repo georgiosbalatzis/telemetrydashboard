@@ -231,159 +231,761 @@ export const sampleSessions = {
 };
 
 export const sampleDrivers = {
-    "Monza": {
-        "Race": [
-            {
-                driver_number: 1,
-                first_name: "Max",
-                last_name: "Verstappen",
-                full_name: "Max Verstappen",
-                team_name: "Red Bull",
-                team_color: "#0600EF",
-                country_code: "NED"
-            },
-            {
-                driver_number: 11,
-                first_name: "Sergio",
-                last_name: "Perez",
-                full_name: "Sergio Perez",
-                team_name: "Red Bull",
-                team_color: "#0600EF",
-                country_code: "MEX"
-            },
-            {
-                driver_number: 44,
-                first_name: "Lewis",
-                last_name: "Hamilton",
-                full_name: "Lewis Hamilton",
-                team_name: "Mercedes",
-                team_color: "#00D2BE",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 63,
-                first_name: "George",
-                last_name: "Russell",
-                full_name: "George Russell",
-                team_name: "Mercedes",
-                team_color: "#00D2BE",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 16,
-                first_name: "Charles",
-                last_name: "Leclerc",
-                full_name: "Charles Leclerc",
-                team_name: "Ferrari",
-                team_color: "#DC0000",
-                country_code: "MON"
-            },
-            {
-                driver_number: 55,
-                first_name: "Carlos",
-                last_name: "Sainz",
-                full_name: "Carlos Sainz",
-                team_name: "Ferrari",
-                team_color: "#DC0000",
-                country_code: "ESP"
-            },
-            {
-                driver_number: 4,
-                first_name: "Lando",
-                last_name: "Norris",
-                full_name: "Lando Norris",
-                team_name: "McLaren",
-                team_color: "#FF8700",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 81,
-                first_name: "Oscar",
-                last_name: "Piastri",
-                full_name: "Oscar Piastri",
-                team_name: "McLaren",
-                team_color: "#FF8700",
-                country_code: "AUS"
-            }
-        ]
-    },
-    "Silverstone": {
-        "Race": [
-            {
-                driver_number: 1,
-                first_name: "Max",
-                last_name: "Verstappen",
-                full_name: "Max Verstappen",
-                team_name: "Red Bull",
-                team_color: "#0600EF",
-                country_code: "NED"
-            },
-            {
-                driver_number: 11,
-                first_name: "Sergio",
-                last_name: "Perez",
-                full_name: "Sergio Perez",
-                team_name: "Red Bull",
-                team_color: "#0600EF",
-                country_code: "MEX"
-            },
-            {
-                driver_number: 44,
-                first_name: "Lewis",
-                last_name: "Hamilton",
-                full_name: "Lewis Hamilton",
-                team_name: "Mercedes",
-                team_color: "#00D2BE",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 63,
-                first_name: "George",
-                last_name: "Russell",
-                full_name: "George Russell",
-                team_name: "Mercedes",
-                team_color: "#00D2BE",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 16,
-                first_name: "Charles",
-                last_name: "Leclerc",
-                full_name: "Charles Leclerc",
-                team_name: "Ferrari",
-                team_color: "#DC0000",
-                country_code: "MON"
-            },
-            {
-                driver_number: 55,
-                first_name: "Carlos",
-                last_name: "Sainz",
-                full_name: "Carlos Sainz",
-                team_name: "Ferrari",
-                team_color: "#DC0000",
-                country_code: "ESP"
-            },
-            {
-                driver_number: 4,
-                first_name: "Lando",
-                last_name: "Norris",
-                full_name: "Lando Norris",
-                team_name: "McLaren",
-                team_color: "#FF8700",
-                country_code: "GBR"
-            },
-            {
-                driver_number: 81,
-                first_name: "Oscar",
-                last_name: "Piastri",
-                full_name: "Oscar Piastri",
-                team_name: "McLaren",
-                team_color: "#FF8700",
-                country_code: "AUS"
-            }
-        ]
-    }
+  "Monza": {
+    "Practice 1": [
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Practice 2": [
+      // same drivers as Practice 1
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Practice 3": [
+      // same drivers as Practice 1
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Qualifying": [
+      // same drivers as Practice 1
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Race": [
+      // same drivers as Practice 1
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ]
+  },
+  "Silverstone": {
+    "Practice 1": [
+      // same drivers list as Monza.P 1
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Practice 2": [
+      // same drivers
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Practice 3": [
+      // same drivers
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Qualifying": [
+      // same drivers
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ],
+    "Race": [
+      // same drivers
+      {
+        driver_number: 1,
+        first_name: "Max",
+        last_name: "Verstappen",
+        full_name: "Max Verstappen",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "NED"
+      },
+      {
+        driver_number: 11,
+        first_name: "Sergio",
+        last_name: "Perez",
+        full_name: "Sergio Perez",
+        team_name: "Red Bull",
+        team_color: "#0600EF",
+        country_code: "MEX"
+      },
+      {
+        driver_number: 44,
+        first_name: "Lewis",
+        last_name: "Hamilton",
+        full_name: "Lewis Hamilton",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 63,
+        first_name: "George",
+        last_name: "Russell",
+        full_name: "George Russell",
+        team_name: "Mercedes",
+        team_color: "#00D2BE",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 16,
+        first_name: "Charles",
+        last_name: "Leclerc",
+        full_name: "Charles Leclerc",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "MON"
+      },
+      {
+        driver_number: 55,
+        first_name: "Carlos",
+        last_name: "Sainz",
+        full_name: "Carlos Sainz",
+        team_name: "Ferrari",
+        team_color: "#DC0000",
+        country_code: "ESP"
+      },
+      {
+        driver_number: 4,
+        first_name: "Lando",
+        last_name: "Norris",
+        full_name: "Lando Norris",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "GBR"
+      },
+      {
+        driver_number: 81,
+        first_name: "Oscar",
+        last_name: "Piastri",
+        full_name: "Oscar Piastri",
+        team_name: "McLaren",
+        team_color: "#FF8700",
+        country_code: "AUS"
+      }
+    ]
+  }
 };
+
 
 // Generate sample lap data for all drivers
 export const generateSampleLapData = (circuitName, sessionName, driverNumbers) => {
