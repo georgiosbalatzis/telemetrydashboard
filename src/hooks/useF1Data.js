@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { loadData, DataSources } from '../utils/dataLoader';
+import { loadData } from '../utils/dataLoader';
 
-export function useCircuits(dataSource = DataSources.LOCAL) {
+export function useCircuits() {
   const [circuits, setCircuits] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -11,7 +11,7 @@ export function useCircuits(dataSource = DataSources.LOCAL) {
       try {
         setIsLoading(true);
         setError(null);
-        const meetings = await loadData('meetings', {}, dataSource);
+        const meetings = await loadData('meetings', {});
         const uniqueCircuits = [...new Set(meetings.map(m => m.circuit_short_name))];
         setCircuits(uniqueCircuits);
       } catch (err) {
@@ -22,12 +22,12 @@ export function useCircuits(dataSource = DataSources.LOCAL) {
     };
 
     loadCircuits();
-  }, [dataSource]);
+  }, []);
 
   return { circuits, isLoading, error };
 }
 
-export function useSessions(circuit, dataSource = DataSources.LOCAL) {
+export function useSessions(circuit) {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -42,7 +42,7 @@ export function useSessions(circuit, dataSource = DataSources.LOCAL) {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await loadData('sessions', { circuit_name: circuit }, dataSource);
+        const data = await loadData('sessions', { circuit_name: circuit });
         setSessions(data);
       } catch (err) {
         setError(err.message);
@@ -52,12 +52,12 @@ export function useSessions(circuit, dataSource = DataSources.LOCAL) {
     };
 
     loadSessions();
-  }, [circuit, dataSource]);
+  }, [circuit]);
 
   return { sessions, isLoading, error };
 }
 
-export function useDrivers(circuit, session, dataSource = DataSources.LOCAL) {
+export function useDrivers(circuit, session) {
   const [drivers, setDrivers] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -75,8 +75,8 @@ export function useDrivers(circuit, session, dataSource = DataSources.LOCAL) {
         const data = await loadData('drivers', {
           circuit_name: circuit,
           session_name: session
-        }, dataSource);
-        
+        });
+
         // Format drivers data
         const driversObj = {};
         data.forEach(driver => {
@@ -84,16 +84,16 @@ export function useDrivers(circuit, session, dataSource = DataSources.LOCAL) {
             const driverNum = String(driver.driver_number);
             driversObj[driverNum] = {
               number: driver.driver_number,
-              name: driver.first_name && driver.last_name 
-                ? `${driver.first_name} ${driver.last_name}`
-                : `Driver ${driver.driver_number}`,
+              name: driver.first_name && driver.last_name
+                  ? `${driver.first_name} ${driver.last_name}`
+                  : `Driver ${driver.driver_number}`,
               team: driver.team_name || 'Unknown Team',
               color: driver.team_color || "#999999",
               data: []
             };
           }
         });
-        
+
         setDrivers(driversObj);
       } catch (err) {
         setError(err.message);
@@ -103,12 +103,12 @@ export function useDrivers(circuit, session, dataSource = DataSources.LOCAL) {
     };
 
     loadDrivers();
-  }, [circuit, session, dataSource]);
+  }, [circuit, session]);
 
   return { drivers, isLoading, error };
 }
 
-export function useLaps(circuit, session, driverNumbers, dataSource = DataSources.LOCAL) {
+export function useLaps(circuit, session, driverNumbers) {
   const [laps, setLaps] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -127,8 +127,8 @@ export function useLaps(circuit, session, driverNumbers, dataSource = DataSource
           circuit_name: circuit,
           session_name: session,
           driver_number: driverNumbers
-        }, dataSource);
-        
+        });
+
         setLaps(data);
       } catch (err) {
         setError(err.message);
@@ -138,12 +138,12 @@ export function useLaps(circuit, session, driverNumbers, dataSource = DataSource
     };
 
     loadLaps();
-  }, [circuit, session, driverNumbers, dataSource]);
+  }, [circuit, session, driverNumbers]);
 
   return { laps, isLoading, error };
 }
 
-export function useCarData(circuit, session, driverNumbers, lap, dataSource = DataSources.LOCAL) {
+export function useCarData(circuit, session, driverNumbers, lap) {
   const [carData, setCarData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -163,8 +163,8 @@ export function useCarData(circuit, session, driverNumbers, lap, dataSource = Da
           session_name: session,
           driver_number: driverNumbers,
           lap_number: lap
-        }, dataSource);
-        
+        });
+
         setCarData(data);
       } catch (err) {
         setError(err.message);
@@ -174,7 +174,7 @@ export function useCarData(circuit, session, driverNumbers, lap, dataSource = Da
     };
 
     loadCarData();
-  }, [circuit, session, driverNumbers, lap, dataSource]);
+  }, [circuit, session, driverNumbers, lap]);
 
   return { carData, isLoading, error };
-} 
+}

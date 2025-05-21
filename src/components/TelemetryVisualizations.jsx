@@ -1,44 +1,17 @@
 // Import React and other dependencies first
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 import { Sun, Moon, Thermometer, Wind, Droplet } from 'lucide-react';
 import { F1StoriesLogo, F1StoriesPoweredBy } from './F1StoriesBranding';
 import { Card, Row, Col, Select, Button, Spin, Alert, Space, Typography } from 'antd';
-import { generateSampleTelemetryData } from '../data/sampleData';
 import { useTelemetryContext } from '../context/TelemetryContext';
-import { prepareLocalData } from '../utils/dataLoader';
+import { loadData } from '../utils/dataLoader';
 import { Box, MenuItem, FormControl, InputLabel } from '@mui/material';
-
-// Import the sample data
-import {
-    sampleMeetings,
-    sampleSessions,
-    sampleDrivers,
-    generateSampleLapData,
-    generateSamplePitStops,
-    generateSampleStints
-} from '../data/sampleData';
-
-// Import local data files
-import localMeetings2025 from '../data/2025/meetings_2025.json';
-import localSessions2025 from '../data/2025/sessions_2025.json';
-import localDriversLatest from '../data/data/drivers_latest.json';
-import localLapsLatest from '../data/data/laps_latest.json';
-import localPitsLatest from '../data/data/pit_latest.json';
-import localStintsLatest from '../data/data/stints_latest.json';
 
 const { Title } = Typography;
 const { Option } = Select;
 
-// Create a lookup object for car data files - start with empty
-const carDataFiles = {
-    "latest": {
-        "1": [],
-        "16": []
-    }
-};
-
-// F1 team colors for 2024 season
+// F1 team colors for 2024/2025 season
 const teamColors = {
     "Ferrari": "#DC0000",
     "Mercedes": "#00D2BE",
@@ -108,10 +81,10 @@ const TelemetryVisualizations = () => {
         setSelectedDrivers,
         selectedLap,
         setSelectedLap,
-        dataSource,
-        setDataSource,
         isLoading,
         error,
+        isDarkMode,
+        toggleTheme,
         fetchMeetings,
         fetchSessions,
         fetchDrivers,
@@ -119,169 +92,146 @@ const TelemetryVisualizations = () => {
         fetchCarData
     } = useTelemetryContext();
 
-    const [localData, setLocalData] = useState(null);
     const [circuits, setCircuits] = useState([]);
     const [sessions, setSessions] = useState([]);
-    const [drivers, setDrivers] = useState([]);
+    const [drivers, setDrivers] = useState({});
     const [laps, setLaps] = useState([]);
     const [meetings, setMeetings] = useState([]);
     const [carData, setCarData] = useState([]);
     const [pitStops, setPitStops] = useState([]);
     const [stints, setStints] = useState([]);
 
-    // Load data when component mounts
+    // Load meeting data when component mounts
     useEffect(() => {
-        const loadData = async () => {
+        const loadInitialData = async () => {
             try {
-                const data = await prepareLocalData();
-                setLocalData(data);
-                console.log('Local data loaded:', data);
+                // Load circuits data
+                const meetingsData = await fetchMeetings();
+                setMeetings(meetingsData);
+
+                // Extract circuits from meetings
+                const uniqueCircuits = [...new Set(meetingsData.map(m => m.circuit_short_name))];
+                setCircuits(uniqueCircuits);
+                console.log('Circuits loaded:', uniqueCircuits);
             } catch (error) {
-                console.error('Error loading local data:', error);
+                console.error('Error loading initial data:', error);
             }
         };
-        loadData();
-    }, []);
 
-    // Set meetings and circuits when local data is loaded
-    useEffect(() => {
-        if (localData?.meetings) {
-            setMeetings(localData.meetings);
-            const uniqueCircuits = [...new Set(localData.meetings.map(m => m.circuit_short_name))];
-            setCircuits(uniqueCircuits);
-            console.log('Circuits loaded:', uniqueCircuits);
-        }
-    }, [localData]);
-
-    // Filter sessions based on selected circuit
-    useEffect(() => {
-        if (localData?.sessions && selectedCircuit) {
-            const circuitSessions = localData.sessions.filter(
-                session => session.circuit_short_name === selectedCircuit
-            );
-            setSessions(circuitSessions);
-            console.log('Sessions loaded for circuit:', selectedCircuit, circuitSessions);
-        }
-    }, [localData, selectedCircuit]);
-
-    // Filter drivers based on selected circuit and session
-    useEffect(() => {
-        if (localData?.drivers && selectedCircuit && selectedSession) {
-            console.log('Filtering drivers for:', {
-                circuit: selectedCircuit,
-                session: selectedSession,
-                totalDrivers: localData.drivers.length
-            });
-
-            const sessionDrivers = localData.drivers.filter(driver => {
-                const matchesCircuit = driver.circuit_short_name === selectedCircuit;
-                const matchesSession = driver.session_name === selectedSession;
-                
-                console.log('Driver check:', {
-                    driverNumber: driver.driver_number,
-                    driverName: driver.full_name,
-                    driverCircuit: driver.circuit_short_name,
-                    driverSession: driver.session_name,
-                    matchesCircuit,
-                    matchesSession
-                });
-
-                return matchesCircuit && matchesSession;
-            });
-
-            console.log('Filtered drivers:', sessionDrivers);
-
-            // Convert to a map with driver_number as key and add color
-            const driversMap = sessionDrivers.reduce((acc, driver) => {
-                acc[driver.driver_number] = {
-                    ...driver,
-                    name: driver.full_name,
-                    team: driver.team_name,
-                    color: `#${driver.team_colour}`
-                };
-                return acc;
-            }, {});
-
-            setDrivers(driversMap);
-            console.log('Drivers map created:', driversMap);
-        } else {
-            setDrivers({});
-        }
-    }, [localData, selectedCircuit, selectedSession]);
-
-    // Filter laps based on selected circuit, session, and drivers
-    useEffect(() => {
-        if (localData?.laps && selectedCircuit && selectedSession && selectedDrivers.length > 0) {
-            const sessionLaps = localData.laps.filter(
-                lap => lap.circuit_short_name === selectedCircuit && 
-                      lap.session_name === selectedSession &&
-                      selectedDrivers.includes(lap.driver_number)
-            );
-            
-            // Extract unique lap numbers for the lap selector
-            const uniqueLapNumbers = [...new Set(sessionLaps.map(lap => lap.lap_number))].sort((a, b) => a - b);
-            setLaps(uniqueLapNumbers);
-            console.log('Laps loaded for session:', selectedSession, sessionLaps);
-        } else {
-            setLaps([]);
-        }
-    }, [localData, selectedCircuit, selectedSession, selectedDrivers]);
-
-    const handleDataSourceChange = (newDataSource) => {
-        setDataSource(newDataSource);
-        // Reset selections when changing data source
-        setSelectedCircuit(null);
-        setSelectedSession(null);
-        setSelectedDrivers([]);
-        setSelectedLap(null);
-    };
+        loadInitialData();
+    }, [fetchMeetings]);
 
     // Load sessions when circuit changes
     useEffect(() => {
-        if (selectedCircuit) {
-            fetchSessions();
-        }
-    }, [selectedCircuit, dataSource]);
+        const loadSessionData = async () => {
+            if (!selectedCircuit) return;
+
+            try {
+                const sessionsData = await fetchSessions();
+                setSessions(sessionsData);
+                console.log('Sessions loaded for circuit:', selectedCircuit, sessionsData);
+            } catch (error) {
+                console.error('Error loading session data:', error);
+            }
+        };
+
+        loadSessionData();
+    }, [selectedCircuit, fetchSessions]);
 
     // Load drivers when session changes
     useEffect(() => {
-        if (selectedSession && selectedCircuit) {
-            fetchDrivers();
-        }
-    }, [selectedSession, selectedCircuit, dataSource]);
+        const loadDriverData = async () => {
+            if (!selectedCircuit || !selectedSession) return;
 
-    // Load lap data when drivers or session change
+            try {
+                const driversData = await fetchDrivers();
+
+                // Convert to a map with driver_number as key and add color
+                const driversMap = driversData.reduce((acc, driver) => {
+                    acc[driver.driver_number] = {
+                        ...driver,
+                        name: driver.full_name,
+                        team: driver.team_name,
+                        color: `#${driver.team_colour}`
+                    };
+                    return acc;
+                }, {});
+
+                setDrivers(driversMap);
+                console.log('Drivers loaded:', driversMap);
+            } catch (error) {
+                console.error('Error loading driver data:', error);
+            }
+        };
+
+        loadDriverData();
+    }, [selectedCircuit, selectedSession, fetchDrivers]);
+
+    // Load lap data when drivers are selected
     useEffect(() => {
-        if (selectedDrivers.length > 0 && selectedSession && selectedCircuit) {
-            fetchLaps();
-        }
-    }, [selectedDrivers, selectedSession, selectedCircuit, dataSource]);
+        const loadLapData = async () => {
+            if (!selectedCircuit || !selectedSession || !selectedDrivers.length) {
+                setLaps([]);
+                return;
+            }
+
+            try {
+                const lapData = await fetchLaps();
+
+                // Store the full lap data
+                setLaps(lapData);
+
+                // Extract unique lap numbers for the lap selector dropdown
+                const uniqueLapNumbers = [...new Set(lapData.map(lap => lap.lap_number))].sort((a, b) => a - b);
+
+                console.log('Available lap numbers:', uniqueLapNumbers);
+
+                // Set the first lap as selected if none is selected
+                if (uniqueLapNumbers.length > 0 && !selectedLap) {
+                    setSelectedLap(uniqueLapNumbers[0]);
+                }
+            } catch (error) {
+                console.error('Error loading lap data:', error);
+            }
+        };
+
+        loadLapData();
+    }, [selectedCircuit, selectedSession, selectedDrivers, fetchLaps]);
 
     // Load car data when lap changes
     useEffect(() => {
-        if (selectedLap && selectedDrivers.length > 0 && selectedSession && selectedCircuit) {
-            console.log('Loading car data for:', {
-                lap: selectedLap,
-                drivers: selectedDrivers,
-                session: selectedSession,
-                circuit: selectedCircuit
-            });
+        const loadCarData = async () => {
+            if (!selectedLap || !selectedDrivers.length || !selectedSession || !selectedCircuit) return;
 
-            // Prepare chart data
-            const chartData = prepareChartData();
-            setCarData(chartData);
-        } else {
-            setCarData([]);
-        }
+            try {
+                // Get car telemetry data
+                // Note: Since the Ergast API doesn't provide this level of detail,
+                // we'll generate synthetic data
+                const chartData = prepareChartData();
+                setCarData(chartData);
+
+                // Also get pit stop data
+                const pitData = await loadData('pit_stops', {
+                    circuit_name: selectedCircuit,
+                    session_name: selectedSession,
+                    driver_number: selectedDrivers
+                });
+                setPitStops(pitData || []);
+
+                // Get stint data
+                const stintData = await loadData('stints', {
+                    circuit_name: selectedCircuit,
+                    session_name: selectedSession,
+                    driver_number: selectedDrivers
+                });
+                setStints(stintData || []);
+            } catch (error) {
+                console.error('Error loading car data:', error);
+            }
+        };
+
+        loadCarData();
     }, [selectedLap, selectedDrivers, selectedSession, selectedCircuit]);
-
-    // Toggle dark/light mode
-    const [isDarkMode, setIsDarkMode] = useState(true);
-    const toggleTheme = () => {
-        setIsDarkMode(!isDarkMode);
-        document.body.classList.toggle('dark-mode');
-        document.body.classList.toggle('light-mode');
-    };
 
     // Prepare chart data from car telemetry
     const prepareChartData = () => {
@@ -312,23 +262,23 @@ const TelemetryVisualizations = () => {
                 const driver = drivers[driverId];
                 const baseSpeed = 250 + (Math.random() * 50); // Base speed between 250-300 km/h
                 const baseThrottle = 0.8 + (Math.random() * 0.2); // Base throttle between 80-100%
-                
+
                 // Generate synthetic telemetry data
                 chartData.forEach((point, index) => {
                     // Speed variation based on track position (simulating straights and corners)
                     const speedVariation = Math.sin(index / numPoints * Math.PI * 2) * 50;
                     const speed = Math.max(50, baseSpeed + speedVariation);
-                    
+
                     // Throttle and brake simulation
                     const isBraking = speedVariation < -20;
                     const throttle = isBraking ? 0 : baseThrottle;
                     const brake = isBraking ? 0.8 + (Math.random() * 0.2) : 0;
-                    
+
                     // Tire temperature and wear simulation
                     const baseTemp = 85 + (Math.random() * 10);
                     const tempVariation = Math.sin(index / numPoints * Math.PI) * 10;
                     const tireTemp = baseTemp + tempVariation;
-                    
+
                     const baseWear = 100 - (selectedLap * 2);
                     const wearVariation = Math.random() * 5;
                     const tireWear = Math.max(0, baseWear - wearVariation);
@@ -347,31 +297,80 @@ const TelemetryVisualizations = () => {
         return chartData;
     };
 
-    // Get sector times for all selected drivers with improved error handling
+    // Update to getSectorTimes function to handle retired drivers
     const getSectorTimes = () => {
         const sectorTimes = {};
 
+        console.log('Getting sector times for drivers:', selectedDrivers);
+        console.log('Selected lap:', selectedLap);
+        console.log('Total available laps:', laps.length);
+
+        // Log a sample lap to see its structure
+        if (laps.length > 0) {
+            console.log('Sample lap data structure:', laps[0]);
+        }
+
         selectedDrivers.forEach(driverId => {
-            const driverIdStr = String(driverId); // Convert to string for lookups
-            const driverLapData = laps.filter(lap => String(lap.driver_number) === driverIdStr && lap.lap_number === selectedLap);
-            
+            // Find the lap data for this driver and the selected lap
+            const driverLapData = laps.filter(lap =>
+                (lap.driver_number === driverId || lap.driver_number === parseInt(driverId)) &&
+                (lap.lap_number === selectedLap || lap.lap_number === parseInt(selectedLap))
+            );
+
+            console.log(`Found ${driverLapData.length} laps for driver ${driverId} and lap ${selectedLap}`);
+
             if (driverLapData.length > 0) {
+                // Log the exact lap data we found for debugging
+                console.log(`Lap data for driver ${driverId}, lap ${selectedLap}:`, driverLapData[0]);
+
+                // For lap 1, handle the special case where sector 1 is missing
+                let s1 = driverLapData[0].sector_1_time;
+                const s2 = driverLapData[0].sector_2_time;
+                const s3 = driverLapData[0].sector_3_time;
+                let total = driverLapData[0].lap_time;
+
+                // Check if we have valid data for sectors 2 and 3
+                const hasS2 = s2 !== null && s2 !== undefined && s2 > 0;
+                const hasS3 = s3 !== null && s3 !== undefined && s3 > 0;
+
+                // For lap 1, calculate total from sectors 2 and 3 if it's missing
+                if (selectedLap === 1 && !total && hasS2 && hasS3) {
+                    // For first lap, we know sector 1 timing isn't recorded
+                    // so calculate a reasonable total from just sectors 2 and 3
+                    total = s2 + s3;
+                }
+
+                // If we still don't have valid sector 1 but have valid total and other sectors,
+                // try to calculate it
+                if ((!s1 || s1 === 0) && total && hasS2 && hasS3) {
+                    s1 = total - s2 - s3;
+                    if (s1 < 0) s1 = 0; // Sanity check
+                }
+
+                const hasData = (s1 && s1 > 0) || (s2 && s2 > 0) || (s3 && s3 > 0) || (total && total > 0);
+
                 sectorTimes[driverId] = {
-                    s1: driverLapData[0].sector_1_time || 0,
-                    s2: driverLapData[0].sector_2_time || 0,
-                    s3: driverLapData[0].sector_3_time || 0,
-                    total: driverLapData[0].lap_time || 0
+                    s1: s1 || 0,
+                    s2: s2 || 0,
+                    s3: s3 || 0,
+                    total: total || 0,
+                    hasData: hasData,
+                    // For lap 1, we know sector 1 data is estimated
+                    isS1Estimated: selectedLap === 1
                 };
-                console.log(`Found lap data for driver ${driverId}: ${drivers[driverId]?.name || 'Unknown'}`);
+
+                console.log(`Processed sector times for driver ${driverId}:`, sectorTimes[driverId]);
             } else {
                 // Fallback to synthetic data if no real data exists
                 sectorTimes[driverId] = {
                     s1: 28.5 + (Math.random() * 0.5),
                     s2: 31.2 + (Math.random() * 0.5),
                     s3: 30.8 + (Math.random() * 0.5),
-                    total: 90.5 + (Math.random() * 1.5)
+                    total: 90.5 + (Math.random() * 1.5),
+                    hasData: false,
+                    isSynthetic: true
                 };
-                console.log(`No lap data for driver ${driverId}, using synthetic data`);
+                console.log(`No lap data found for driver ${driverId}, lap ${selectedLap}, using synthetic data`);
             }
         });
 
@@ -393,17 +392,28 @@ const TelemetryVisualizations = () => {
     };
 
     // Format time with appropriate color based on comparison to best time
-    const formatTimeWithColor = (time, bestTime) => {
-        if (!time || time === 0) return <span className="text-gray-400">No data</span>;
+    const formatTimeWithColor = (time, bestTime, noData, isEstimated = false) => {
+        if (noData || time === null || time === undefined || time === 0) {
+            return <span className="text-gray-400">No data</span>;
+        }
 
-        const diff = time - bestTime;
+        // Make sure we're comparing numbers
+        const timeValue = Number(time);
+        const bestTimeValue = Number(bestTime);
+
+        if (isNaN(timeValue) || isNaN(bestTimeValue)) {
+            console.warn('Invalid time values:', { time, bestTime });
+            return <span className="text-gray-400">Invalid data</span>;
+        }
+
+        const diff = timeValue - bestTimeValue;
         const color = diff === 0 ? 'text-purple-500' : diff < 0.2 ? 'text-green-500' : diff < 0.5 ? 'text-yellow-500' : 'text-red-500';
         const sign = diff > 0 ? '+' : '';
 
         return (
             <span className={color}>
-        {time.toFixed(3)}s {diff !== 0 && <span className="text-xs">({sign}{diff.toFixed(3)}s)</span>}
-      </span>
+      {timeValue.toFixed(3)}s{isEstimated ? '*' : ''} {diff !== 0 && <span className="text-xs">({sign}{diff.toFixed(3)}s)</span>}
+    </span>
         );
     };
 
@@ -549,7 +559,6 @@ const TelemetryVisualizations = () => {
     };
 
     // Generate weather-specific strategy recommendations
-    // generateWeatherRecommendations function
     const generateWeatherRecommendations = (condition) => {
         switch (condition) {
             case 'clear':
@@ -606,7 +615,15 @@ const TelemetryVisualizations = () => {
                     <F1StoriesLogo size="md" />
                     <span className="font-bold text-lg ml-2">F1Stories</span>
                 </div>
-                <F1StoriesPoweredBy />
+                <div className="flex items-center">
+                    <button
+                        onClick={toggleTheme}
+                        className="mr-4 p-2 rounded-full bg-gray-800 text-gray-200 hover:bg-gray-700"
+                    >
+                        {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                    <F1StoriesPoweredBy />
+                </div>
             </div>
 
             {/* Add padding to account for fixed header */}
@@ -621,43 +638,6 @@ const TelemetryVisualizations = () => {
                 </header>
 
                 <div className={`p-6 rounded-xl shadow-lg mb-8 ${isDarkMode ? 'bg-gray-800 bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gray-100'}`}>
-                    {/* Data Source Selection */}
-                    <div className="mb-6">
-                        <label className="block mb-2 text-sm font-semibold uppercase tracking-wider text-cyan-300">Data Source</label>
-                        <div className="flex space-x-2">
-                            <button
-                                className={`py-1 px-3 rounded-full text-sm ${dataSource === 'sample' ? 'bg-cyan-600 text-white' : isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-                                onClick={() => {
-                                    console.log("Sample data button clicked");
-                                    handleDataSourceChange('sample');
-                                }}
-                                disabled={isLoading}
-                            >
-                                Sample Data
-                            </button>
-                            <button
-                                className={`py-1 px-3 rounded-full text-sm ${dataSource === 'local' ? 'bg-cyan-600 text-white' : isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-                                onClick={() => {
-                                    console.log("Local data button clicked");
-                                    handleDataSourceChange('local');
-                                }}
-                                disabled={isLoading}
-                            >
-                                2025 Calendar Data
-                            </button>
-                            <button
-                                className={`py-1 px-3 rounded-full text-sm ${dataSource === 'api' ? 'bg-cyan-600 text-white' : isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-                                onClick={() => {
-                                    console.log("API data button clicked");
-                                    handleDataSourceChange('api');
-                                }}
-                                disabled={isLoading}
-                            >
-                                Live API
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Filters Section */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div>
@@ -735,7 +715,7 @@ const TelemetryVisualizations = () => {
                                     onChange={(e) => {
                                         const newDrivers = [...selectedDrivers];
                                         newDrivers[index] = e.target.value ? parseInt(e.target.value) : null;
-                                        setSelectedDrivers(newDrivers);
+                                        setSelectedDrivers(newDrivers.filter(Boolean));
                                     }}
                                     disabled={isLoading || Object.keys(drivers).length === 0}
                                 >
@@ -749,7 +729,6 @@ const TelemetryVisualizations = () => {
                             </div>
                         ))}
                     </div>
-
                     {/* Lap Selection */}
                     {laps.length > 0 && (
                         <div className="mb-6">
@@ -761,8 +740,9 @@ const TelemetryVisualizations = () => {
                                     onChange={(e) => setSelectedLap(parseInt(e.target.value))}
                                     disabled={isLoading}
                                 >
-                                    {laps.map(lap => (
-                                        <option key={`lap-${lap}`} value={lap}>Lap {lap}</option>
+                                    {/* This is where the error is happening - we need to get the lap numbers, not the full lap objects */}
+                                    {[...new Set(laps.map(lap => lap.lap_number))].sort((a, b) => a - b).map(lapNumber => (
+                                        <option key={`lap-${lapNumber}`} value={lapNumber}>Lap {lapNumber}</option>
                                     ))}
                                 </select>
                             </div>
@@ -790,30 +770,30 @@ const TelemetryVisualizations = () => {
                                     {selectedDrivers.map(driverId => {
                                         if (!sectorTimes[driverId]) return null;
                                         const times = sectorTimes[driverId];
-                                        const hasData = times.total > 0;
-                                        
+
                                         return (
                                             <tr key={driverId} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
                                                 <td className="p-2 font-medium" style={{ color: drivers[driverId]?.color || '#999' }}>
                                                     {drivers[driverId]?.name || `Driver ${driverId}`}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {hasData ? formatTimeWithColor(times.s1, bestSectorTimes.s1) : <span className="text-gray-400">No data</span>}
+                                                    {formatTimeWithColor(times.s1, bestSectorTimes.s1, !times.hasData, times.isS1Estimated)}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {hasData ? formatTimeWithColor(times.s2, bestSectorTimes.s2) : <span className="text-gray-400">No data</span>}
+                                                    {formatTimeWithColor(times.s2, bestSectorTimes.s2, !times.hasData)}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {hasData ? formatTimeWithColor(times.s3, bestSectorTimes.s3) : <span className="text-gray-400">No data</span>}
+                                                    {formatTimeWithColor(times.s3, bestSectorTimes.s3, !times.hasData)}
                                                 </td>
                                                 <td className="p-2 text-center font-bold">
-                                                    {hasData ? formatTimeWithColor(times.total, bestSectorTimes.total) : <span className="text-gray-400">No data</span>}
+                                                    {formatTimeWithColor(times.total, bestSectorTimes.total, !times.hasData)}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {hasData && times.total === bestSectorTimes.total ?
+                                                    {times.hasData && times.total === bestSectorTimes.total ?
                                                         <span className="text-purple-500">LEADER</span> :
-                                                        hasData ? <span className="text-gray-400">+{(times.total - bestSectorTimes.total).toFixed(3)}s</span> :
-                                                        <span className="text-gray-400">No data</span>
+                                                        times.hasData && times.total > 0 && bestSectorTimes.total > 0 ?
+                                                            <span className="text-gray-400">+{(times.total - bestSectorTimes.total).toFixed(3)}s</span> :
+                                                            <span className="text-gray-400">No data</span>
                                                     }
                                                 </td>
                                             </tr>
@@ -822,6 +802,13 @@ const TelemetryVisualizations = () => {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Add note about estimated values */}
+                            {selectedLap === 1 && (
+                                <div className="text-xs text-gray-400 mt-2 text-center">
+                                    * Sector 1 times for lap 1 are estimated based on available sector data
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -829,17 +816,17 @@ const TelemetryVisualizations = () => {
                     <div className={`p-4 mb-6 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'}`}>
                         <h3 className="font-bold mb-2">Debug Information</h3>
                         <div className="text-sm">
-                            <p>Current data source: <span className="font-mono bg-gray-800 px-1 rounded">{dataSource}</span></p>
-                            <p>Local data loaded: <span className="font-mono bg-gray-800 px-1 rounded">{localData ? `Yes (${meetings.length} meetings)` : 'No'}</span></p>
+                            <p>API: <span className="font-mono bg-gray-800 px-1 rounded">http://api.jolpi.ca/ergast/f1</span></p>
                             <p>Selected circuit: <span className="font-mono bg-gray-800 px-1 rounded">{selectedCircuit || 'None'}</span></p>
                             <p>Available sessions: <span className="font-mono bg-gray-800 px-1 rounded">{sessions.length}</span></p>
                             <p>Selected session: <span className="font-mono bg-gray-800 px-1 rounded">{selectedSession || 'None'}</span></p>
                             <p>Available drivers: <span className="font-mono bg-gray-800 px-1 rounded">{Object.keys(drivers).length}</span></p>
-                            <p>Available lap data: <span className="font-mono bg-gray-800 px-1 rounded">
-                                {selectedDrivers.map(driverId => 
-                                    laps.some(lap => lap.driver_number === driverId) ? driverId : null
-                                ).filter(Boolean).join(', ') || 'None'}
-                            </span></p>
+                            <p>Selected drivers: <span className="font-mono bg-gray-800 px-1 rounded">
+                               {selectedDrivers.map(driverId =>
+                                   drivers[driverId]?.name || driverId
+                               ).join(', ') || 'None'}
+                           </span></p>
+                            <p>Selected lap: <span className="font-mono bg-gray-800 px-1 rounded">{selectedLap || 'None'}</span></p>
                         </div>
                     </div>
                 </div>
@@ -1111,7 +1098,7 @@ const TelemetryVisualizations = () => {
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
                                 {Object.entries(tireCompounds).map(([name, data]) => (
                                     <div key={`tire-${name}`} className={`p-3 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'} flex flex-col items-center`}>
-                                    <div className="w-6 h-6 rounded-full mb-2" style={{ backgroundColor: data.color, border: '1px solid #666' }}></div>
+                                        <div className="w-6 h-6 rounded-full mb-2" style={{ backgroundColor: data.color, border: '1px solid #666' }}></div>
                                         <h5 className="font-bold capitalize">{name}</h5>
                                         <div className="w-full mt-2 space-y-1">
                                             <div className="flex justify-between text-xs">
@@ -1207,9 +1194,10 @@ const TelemetryVisualizations = () => {
                     <div className={`p-12 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center`}>
                         <h3 className="text-xl font-bold mb-4">Limited Telemetry Data Available</h3>
                         <p className="mb-2">Telemetry data is only available for some drivers in this session.</p>
-                        <p>Available lap data for: {selectedDrivers.map(driverId => 
-                            laps.some(lap => lap.driver_number === driverId) ? drivers[driverId]?.name : null
+                        <p>Available lap data for: {selectedDrivers.map(driverId =>
+                            drivers[driverId]?.name
                         ).filter(Boolean).join(', ') || 'None'}</p>
+                        <p className="mt-4 text-cyan-400">Using Ergast API data from: http://api.jolpi.ca/ergast/f1</p>
                     </div>
                 )}
 
@@ -1218,13 +1206,14 @@ const TelemetryVisualizations = () => {
                     <div className={`p-12 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'} text-center`}>
                         <h3 className="text-xl font-bold mb-4">Welcome to F1 Telemetry Dashboard</h3>
                         <p>Please select a circuit and session to begin analyzing telemetry data.</p>
+                        <p className="mt-4 text-cyan-400">Using live data from Ergast API</p>
                     </div>
                 )}
 
                 <footer className="mt-12 text-center text-sm">
                     <F1StoriesPoweredBy textColor="text-cyan-400" size="md" />
-                    <p className="text-gray-500">Data provided by OpenF1 API • {new Date().getFullYear()}</p>
-                    <p className="mt-1 text-gray-500">Lap data updated every 5 minutes during live sessions</p>
+                    <p className="text-gray-500">Data provided by Ergast F1 API • {new Date().getFullYear()}</p>
+                    <p className="mt-1 text-gray-500">API URL: http://api.jolpi.ca/ergast/f1</p>
                 </footer>
             </div>
         </div>

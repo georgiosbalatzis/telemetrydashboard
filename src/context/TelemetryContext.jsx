@@ -10,15 +10,19 @@ export const TelemetryProvider = ({ children }) => {
     const [selectedSession, setSelectedSession] = useState(null);
     const [selectedDrivers, setSelectedDrivers] = useState([]);
     const [selectedLap, setSelectedLap] = useState(null);
-    const [dataSource, setDataSource] = useState('local');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [isDarkMode, setIsDarkMode] = useState(true);
+
+    const toggleTheme = useCallback(() => {
+        setIsDarkMode(prevMode => !prevMode);
+    }, []);
 
     const fetchMeetings = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
-            const data = await loadData('meetings', {}, dataSource);
+            const data = await loadData('circuits', {});
             return data;
         } catch (err) {
             setError(err.message);
@@ -26,13 +30,13 @@ export const TelemetryProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataSource]);
+    }, []);
 
-    const fetchSessions = useCallback(async (circuit) => {
+    const fetchSessions = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
-            const data = await loadData('sessions', { circuit_name: circuit }, dataSource);
+            const data = await loadData('schedule', { circuit_name: selectedCircuit });
             return data;
         } catch (err) {
             setError(err.message);
@@ -40,13 +44,16 @@ export const TelemetryProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataSource]);
+    }, [selectedCircuit]);
 
-    const fetchDrivers = useCallback(async (circuit, session) => {
+    const fetchDrivers = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
-            const data = await loadData('drivers', { circuit_name: circuit, session_name: session }, dataSource);
+            const data = await loadData('drivers', {
+                circuit_name: selectedCircuit,
+                session_name: selectedSession
+            });
             return data;
         } catch (err) {
             setError(err.message);
@@ -54,17 +61,38 @@ export const TelemetryProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataSource]);
+    }, [selectedCircuit, selectedSession]);
 
-    const fetchLaps = useCallback(async (circuit, session, driverNumbers) => {
+    // Modified version of fetchLaps function in TelemetryContext.jsx
+    const fetchLaps = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
-            const data = await loadData('laps', { 
-                circuit_name: circuit, 
-                session_name: session, 
-                driver_number: driverNumbers 
-            }, dataSource);
+
+            // Find the session key for the selected circuit and session
+            const sessions = await loadData('schedule', {
+                circuit_name: selectedCircuit,
+                session_name: selectedSession
+            });
+
+            const sessionKey = sessions.length > 0
+                ? sessions[0].original_session_key
+                : null;
+
+            if (!sessionKey) {
+                console.error('Could not find session key for', selectedCircuit, selectedSession);
+                console.log('Available sessions:', sessions);
+                throw new Error('Could not find session key for selected circuit and session');
+            }
+
+            console.log(`Found session key ${sessionKey} for ${selectedCircuit} ${selectedSession}`);
+
+            const data = await loadData('laps', {
+                session_key: sessionKey,
+                driver_number: selectedDrivers
+            });
+
+            console.log(`Fetch laps returned ${data.length} laps`);
             return data;
         } catch (err) {
             setError(err.message);
@@ -72,18 +100,18 @@ export const TelemetryProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataSource]);
+    }, [selectedCircuit, selectedSession, selectedDrivers, loadData]);
 
-    const fetchCarData = useCallback(async (circuit, session, driverNumbers, lap) => {
+    const fetchCarData = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
-            const data = await loadData('car_data', { 
-                circuit_name: circuit, 
-                session_name: session, 
-                driver_number: driverNumbers, 
-                lap_number: lap 
-            }, dataSource);
+            const data = await loadData('car_data', {
+                circuit_name: selectedCircuit,
+                session_name: selectedSession,
+                driver_number: selectedDrivers,
+                lap_number: selectedLap
+            });
             return data;
         } catch (err) {
             setError(err.message);
@@ -91,7 +119,7 @@ export const TelemetryProvider = ({ children }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataSource]);
+    }, [selectedCircuit, selectedSession, selectedDrivers, selectedLap]);
 
     const value = {
         selectedCircuit,
@@ -102,12 +130,12 @@ export const TelemetryProvider = ({ children }) => {
         setSelectedDrivers,
         selectedLap,
         setSelectedLap,
-        dataSource,
-        setDataSource,
         isLoading,
         setIsLoading,
         error,
         setError,
+        isDarkMode,
+        toggleTheme,
         fetchMeetings,
         fetchSessions,
         fetchDrivers,
@@ -129,4 +157,4 @@ export const useTelemetryContext = () => {
         throw new Error('useTelemetryContext must be used within a TelemetryProvider');
     }
     return context;
-}; 
+};
