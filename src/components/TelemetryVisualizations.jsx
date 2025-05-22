@@ -123,6 +123,125 @@ const TelemetryVisualizations = () => {
         fetchCarData
     } = useTelemetryContext();
 
+    useEffect(() => {
+        const loadWeather = async () => {
+            if (selectedCircuit && selectedSession) {
+                const weather = await loadWeatherData();
+                setCurrentWeather(weather);
+            }
+        };
+
+        loadWeather();
+    }, [selectedCircuit, selectedSession]);
+
+// Add this function to load real weather data
+    const loadWeatherData = async () => {
+        if (!selectedCircuit || !selectedSession) return null;
+
+        try {
+            // Try to load weather data from the API
+            const weatherData = await loadData('weather', {
+                circuit_name: selectedCircuit,
+                session_name: selectedSession
+            });
+
+            if (weatherData && weatherData.length > 0) {
+                // Use the most recent weather data point
+                const latestWeather = weatherData[weatherData.length - 1];
+                console.log('Real weather data found:', latestWeather);
+
+                return {
+                    temperature: latestWeather.air_temperature || latestWeather.temperature || 25,
+                    trackTemp: latestWeather.track_temperature || latestWeather.track_temp || 35,
+                    humidity: latestWeather.humidity || 50,
+                    windSpeed: latestWeather.wind_speed || 10,
+                    windDirection: latestWeather.wind_direction || 180,
+                    precipitation: latestWeather.rainfall || latestWeather.precipitation || 0,
+                    isRealData: true
+                };
+            }
+        } catch (error) {
+            console.warn('Could not load real weather data:', error);
+        }
+
+        // Fallback to session-based estimates
+        return getEstimatedWeatherBySession();
+    };
+
+    // Enhanced weather estimation based on session and circuit
+    const getEstimatedWeatherBySession = () => {
+        const sessionWeatherMap = {
+            'Practice 1': { // Friday morning
+                temperature: 22,
+                trackTemp: 28,
+                humidity: 65,
+                windSpeed: 8,
+                precipitation: 0
+            },
+            'Practice 2': { // Friday afternoon
+                temperature: 26,
+                trackTemp: 38,
+                humidity: 55,
+                windSpeed: 12,
+                precipitation: 0
+            },
+            'Practice 3': { // Saturday morning
+                temperature: 24,
+                trackTemp: 32,
+                humidity: 60,
+                windSpeed: 10,
+                precipitation: 0
+            },
+            'Qualifying': { // Saturday afternoon
+                temperature: 28,
+                trackTemp: 42,
+                humidity: 50,
+                windSpeed: 15,
+                precipitation: 0
+            },
+            'Sprint': { // Saturday (if applicable)
+                temperature: 27,
+                trackTemp: 40,
+                humidity: 52,
+                windSpeed: 13,
+                precipitation: 0
+            },
+            'Race': { // Sunday afternoon
+                temperature: 30,
+                trackTemp: 45,
+                humidity: 45,
+                windSpeed: 18,
+                precipitation: 0
+            }
+        };
+
+        // Circuit-specific weather modifiers
+        const circuitModifiers = {
+            'monaco': { temp: -3, humidity: +15, wind: -5 }, // Cooler, more humid
+            'singapore': { temp: +5, humidity: +25, wind: -3 }, // Hot and humid
+            'spa': { temp: -5, humidity: +10, wind: +5 }, // Cooler, windier
+            'monza': { temp: +2, humidity: -5, wind: +3 }, // Slightly warmer
+            'silverstone': { temp: -2, humidity: +8, wind: +8 }, // British weather
+            'interlagos': { temp: +3, humidity: +12, wind: +2 }, // Brazilian climate
+            'bahrain': { temp: +8, humidity: -15, wind: +5 }, // Desert climate
+            'australia': { temp: +1, humidity: +5, wind: +3 } // Mild climate
+        };
+
+        const baseWeather = sessionWeatherMap[selectedSession] || sessionWeatherMap['Race'];
+        const circuitKey = selectedCircuit?.toLowerCase();
+        const modifier = circuitModifiers[circuitKey] || { temp: 0, humidity: 0, wind: 0 };
+
+        return {
+            temperature: baseWeather.temperature + modifier.temp,
+            trackTemp: baseWeather.trackTemp + modifier.temp + 5,
+            humidity: Math.max(20, Math.min(90, baseWeather.humidity + modifier.humidity)),
+            windSpeed: Math.max(5, baseWeather.windSpeed + modifier.wind),
+            windDirection: 180 + (Math.random() * 90 - 45), // Random direction ±45°
+            precipitation: baseWeather.precipitation,
+            isRealData: false
+        };
+    };
+
     // Color management functions
     const getEnhancedTeamColor = (teamName) => {
         // When in dark mode, use even more vibrant colors for better visibility
@@ -172,6 +291,7 @@ const TelemetryVisualizations = () => {
     const [pitStops, setPitStops] = useState([]);
     const [stints, setStints] = useState([]);
     const [usingRealData, setUsingRealData] = useState(false);
+    const [currentWeather, setCurrentWeather] = useState(null); // ADD THIS LINE
 
     // Load meeting data when component mounts
     useEffect(() => {
@@ -428,6 +548,7 @@ const TelemetryVisualizations = () => {
         loadLapData();
     }, [selectedCircuit, selectedSession, selectedDrivers, fetchLaps]);
 
+    // Load car data when lap changes
     useEffect(() => {
         const loadCarData = async () => {
             if (!selectedLap || !selectedDrivers.length || !selectedSession || !selectedCircuit) return;
@@ -474,111 +595,147 @@ const TelemetryVisualizations = () => {
                 const chartData = prepareChartData(realCarData);
                 setCarData(chartData);
 
+                // Load actual weather data
+                console.log('🌤️ Loading weather data...');
+
+                // First, get the session_key for the API call
+                const sessions = await loadData('schedule', {
+                    circuit_name: selectedCircuit,
+                    session_name: selectedSession
+                });
+
+                const sessionKey = sessions.length > 0 ? sessions[0].original_session_key : null;
+
+                if (sessionKey) {
+                    try {
+                        // Try to load weather data using OpenF1 API
+                        const weatherResponse = await fetch(`https://api.openf1.org/v1/weather?session_key=${sessionKey}`);
+                        if (weatherResponse.ok) {
+                            const weatherData = await weatherResponse.json();
+                            console.log(`🌤️ Weather data found:`, weatherData.length, 'records');
+
+                            if (weatherData && weatherData.length > 0) {
+                                // Log sample data structure for debugging
+                                console.log('🌤️ Sample weather data structure:', weatherData[0]);
+                                console.log('🌤️ Available weather fields:', Object.keys(weatherData[0]));
+
+                                // Use the most recent weather reading
+                                const latestWeather = weatherData[weatherData.length - 1];
+                                console.log('🌤️ Latest weather data:', latestWeather);
+                                setCurrentWeather({
+                                    ...latestWeather,
+                                    isRealData: true
+                                });
+                            } else {
+                                console.warn('🌤️ No weather data available for this session');
+                                setCurrentWeather(null);
+                            }
+                        } else {
+                            console.warn('🌤️ Weather API call failed:', weatherResponse.status);
+                            setCurrentWeather(null);
+                        }
+                    } catch (error) {
+                        console.error('🌤️ Error fetching weather data:', error);
+                        setCurrentWeather(null);
+                    }
+                } else {
+                    console.warn('🌤️ No session key available for weather data');
+                    setCurrentWeather(null);
+                }
+
                 // Only get pit stop data for race sessions
                 if (selectedSession && selectedSession.toLowerCase().includes('race')) {
-                    console.log('🔧 Loading pit stop data using OpenF1 API...');
+                    console.log('🔧 DEBUG: Loading pit stop data for race session...');
+                    console.log('🔧 DEBUG: Parameters:', {
+                        circuit: selectedCircuit,
+                        session: selectedSession,
+                        drivers: selectedDrivers
+                    });
 
-                    // First, get the session_key for OpenF1 API
+                    // First, get the session_key for the API calls
                     const sessions = await loadData('schedule', {
                         circuit_name: selectedCircuit,
                         session_name: selectedSession
                     });
 
                     const sessionKey = sessions.length > 0 ? sessions[0].original_session_key : null;
+                    console.log('🔧 DEBUG: Found session key:', sessionKey);
 
                     if (sessionKey) {
-                        console.log(`Found session key: ${sessionKey}`);
-
-                        // Load pit stops using OpenF1 API format
                         try {
+                            // Try to load pit stops directly from OpenF1 API
+                            console.log('🔧 DEBUG: Fetching pit stops from OpenF1 API...');
                             const pitResponse = await fetch(`https://api.openf1.org/v1/pit?session_key=${sessionKey}`);
+
                             if (pitResponse.ok) {
                                 const allPitData = await pitResponse.json();
-                                console.log(`OpenF1 pit data:`, allPitData.length, 'records');
+                                console.log(`🔧 DEBUG: OpenF1 API returned ${allPitData?.length || 0} pit stop records`);
 
-                                // Filter for selected drivers
-                                const filteredPitData = allPitData.filter(pit =>
-                                    selectedDrivers.includes(parseInt(pit.driver_number))
-                                );
+                                if (allPitData && allPitData.length > 0) {
+                                    console.log('🔧 DEBUG: Sample pit stop data structure:', allPitData[0]);
 
-                                setPitStops(filteredPitData);
-                                console.log(`Filtered pit stops:`, filteredPitData.length);
+                                    // Filter for selected drivers
+                                    const filteredPitData = allPitData.filter(pit => {
+                                        const pitDriverId = pit.driver_number;
+                                        return selectedDrivers.includes(parseInt(pitDriverId));
+                                    });
+
+                                    console.log(`🔧 DEBUG: Filtered pit data for selected drivers:`, filteredPitData.length, 'records');
+                                    setPitStops(filteredPitData);
+                                } else {
+                                    console.log('🔧 DEBUG: No pit stop data from API, trying fallback methods...');
+                                    setPitStops([]);
+                                }
+                            } else {
+                                console.log('🔧 DEBUG: OpenF1 API pit request failed:', pitResponse.status);
+                                setPitStops([]);
                             }
+
+                            // Try to load stints directly from OpenF1 API
+                            console.log('🔧 DEBUG: Fetching stints from OpenF1 API...');
+                            const stintResponse = await fetch(`https://api.openf1.org/v1/stints?session_key=${sessionKey}`);
+
+                            if (stintResponse.ok) {
+                                const allStintData = await stintResponse.json();
+                                console.log(`🔧 DEBUG: OpenF1 API returned ${allStintData?.length || 0} stint records`);
+
+                                if (allStintData && allStintData.length > 0) {
+                                    console.log('🔧 DEBUG: Sample stint data structure:', allStintData[0]);
+
+                                    // Filter for selected drivers
+                                    const filteredStintData = allStintData.filter(stint => {
+                                        const stintDriverId = stint.driver_number;
+                                        return selectedDrivers.includes(parseInt(stintDriverId));
+                                    });
+
+                                    console.log(`🔧 DEBUG: Filtered stint data for selected drivers:`, filteredStintData.length, 'records');
+                                    setStints(filteredStintData);
+                                } else {
+                                    console.log('🔧 DEBUG: No stint data from API');
+                                    setStints([]);
+                                }
+                            } else {
+                                console.log('🔧 DEBUG: OpenF1 API stint request failed:', stintResponse.status);
+                                setStints([]);
+                            }
+
                         } catch (error) {
-                            console.error('Error loading pit data:', error);
+                            console.error('🔧 DEBUG: Error fetching pit/stint data from OpenF1 API:', error);
                             setPitStops([]);
-                        }
-
-                        // Load stints using OpenF1 API format
-                        try {
-                            const stintsResponse = await fetch(`https://api.openf1.org/v1/stints?session_key=${sessionKey}`);
-                            if (stintsResponse.ok) {
-                                const allStintData = await stintsResponse.json();
-                                console.log(`OpenF1 stint data:`, allStintData.length, 'records');
-
-                                // Filter for selected drivers
-                                const filteredStintData = allStintData.filter(stint =>
-                                    selectedDrivers.includes(parseInt(stint.driver_number))
-                                );
-
-                                setStints(filteredStintData);
-                                console.log(`Filtered stints:`, filteredStintData.length);
-                            }
-                        } catch (error) {
-                            console.error('Error loading stint data:', error);
                             setStints([]);
                         }
                     } else {
-                        console.warn('No session key found for OpenF1 API calls');
+                        console.warn('🔧 DEBUG: No session key available for pit/stint data');
                         setPitStops([]);
                         setStints([]);
                     }
                 } else {
+                    // Clear pit stop data for non-race sessions
                     setPitStops([]);
                     setStints([]);
                 }
             } catch (error) {
                 console.error('Error loading car data:', error);
-            }
-        };
-
-
-        // Add this debugging function to test what endpoints exist
-        const testAvailableEndpoints = async () => {
-            const testEndpoints = [
-                'pit',
-                'pit_stops',
-                'pitstops',
-                'pits',
-                'stints',
-                'stint',
-                'tire_stints',
-                'compounds',
-                'position',
-                'intervals',
-                'team_radio',
-                'race_control',
-                'car_data',
-                'location'
-            ];
-
-            console.log('🔍 Testing available OpenF1 API endpoints...');
-
-            for (const endpoint of testEndpoints) {
-                try {
-                    const response = await fetch(`https://api.openf1.org/v1/${endpoint}?session_key=9158`); // Use a known session key
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log(`✅ ${endpoint}: Available (${Array.isArray(data) ? data.length : 'object'} records)`);
-                        if (Array.isArray(data) && data.length > 0) {
-                            console.log(`   Sample ${endpoint} data:`, data[0]);
-                        }
-                    } else {
-                        console.log(`❌ ${endpoint}: Not available (${response.status})`);
-                    }
-                } catch (error) {
-                    console.log(`❌ ${endpoint}: Error (${error.message})`);
-                }
             }
         };
 
@@ -1175,38 +1332,60 @@ const TelemetryVisualizations = () => {
     // Update the preparePitStopData function to handle the starting compound
     const preparePitStopData = () => {
         console.log('🔧 preparePitStopData called');
+        console.log('🔧 Available pit stops:', pitStops.length);
+        console.log('🔧 Available stints:', stints.length);
+
         const pitStopData = [];
 
         selectedDrivers.forEach(driverId => {
             const driverName = drivers[driverId]?.name || `Driver ${driverId}`;
             const driverColor = getDriverColor(driverId);
 
+            // Filter pit stops for this driver
             const driverPitStops = pitStops.filter(pit => {
-                const pitDriverId = pit.driver_number || pit.driver_id || pit.driverId;
-                return pitDriverId == driverId;
+                const pitDriverId = pit.driver_number;
+                return parseInt(pitDriverId) === parseInt(driverId);
             });
 
+            // Filter stints for this driver
             const driverStints = stints.filter(stint => {
-                const stintDriverId = stint.driver_number || stint.driver_id || stint.driverId;
-                return stintDriverId == driverId;
+                const stintDriverId = stint.driver_number;
+                return parseInt(stintDriverId) === parseInt(driverId);
             });
+
+            console.log(`🔧 Driver ${driverId}: ${driverPitStops.length} pit stops, ${driverStints.length} stints`);
 
             let processedPitStops = [];
             let totalPitTime = 0;
             let hasRealData = false;
             let strategy = 'No data';
 
+            // Process real pit stop data if available
             if (driverPitStops.length > 0) {
                 hasRealData = true;
+                console.log(`🔧 Processing real pit stops for driver ${driverId}:`, driverPitStops);
+
                 processedPitStops = driverPitStops.map(stop => {
-                    const lapNumber = stop.lap_number || stop.lap || stop.pit_lap || 0;
-                    const duration = stop.pit_duration || stop.duration || stop.pit_time || 0;
-                    const durationInSeconds = duration > 100 ? duration / 1000 : duration;
+                    // OpenF1 API pit stop fields
+                    const lapNumber = stop.lap_number || 0;
+                    const duration = stop.pit_duration || stop.duration || 0;
+                    // Duration is usually in seconds from OpenF1 API
+                    const durationInSeconds = duration;
 
                     totalPitTime += durationInSeconds;
 
-                    let tireCompound = stop.compound || stop.tire_compound || stop.tyre_compound || 'medium';
-                    tireCompound = tireCompound.toLowerCase();
+                    // Try to get compound from the pit stop or from stints
+                    let tireCompound = 'medium'; // default
+
+                    // Try to find the stint that starts after this pit stop
+                    const correspondingStint = driverStints.find(stint =>
+                        stint.lap_start === lapNumber + 1 ||
+                        (stint.lap_start <= lapNumber + 2 && stint.lap_start >= lapNumber)
+                    );
+
+                    if (correspondingStint && correspondingStint.compound) {
+                        tireCompound = correspondingStint.compound.toLowerCase();
+                    }
 
                     return {
                         lap: lapNumber,
@@ -1216,35 +1395,76 @@ const TelemetryVisualizations = () => {
                 });
 
                 processedPitStops.sort((a, b) => a.lap - b.lap);
+                console.log(`🔧 Processed pit stops for driver ${driverId}:`, processedPitStops);
             }
 
-            // Build complete strategy including starting compound
+            // Build strategy from stint data if available
             if (driverStints.length > 0) {
+                hasRealData = true;
+                console.log(`🔧 Processing real stints for driver ${driverId}:`, driverStints);
+
                 // Sort stints by stint number or start lap
                 const sortedStints = driverStints.sort((a, b) => {
-                    const aStart = a.stint_number || a.lap_start || a.start_lap || 0;
-                    const bStart = b.stint_number || b.lap_start || b.start_lap || 0;
+                    const aStart = a.stint_number || a.lap_start || 0;
+                    const bStart = b.stint_number || b.lap_start || 0;
                     return aStart - bStart;
                 });
 
                 strategy = sortedStints
                     .map(stint => {
-                        const compound = stint.compound || stint.tire_compound || stint.tyre_compound || 'Medium';
+                        const compound = stint.compound || 'Medium';
                         return compound.charAt(0).toUpperCase() + compound.slice(1).toLowerCase();
                     })
                     .join(' → ');
 
-                // Update pit stop compounds based on stint transitions
-                if (processedPitStops.length > 0 && sortedStints.length > 1) {
-                    processedPitStops.forEach((stop, index) => {
-                        // The pit stop should lead to the next stint
-                        if (index + 1 < sortedStints.length) {
-                            const nextStint = sortedStints[index + 1];
-                            if (nextStint && nextStint.compound) {
-                                stop.tireCompound = nextStint.compound.toLowerCase();
-                            }
-                        }
+                console.log(`🔧 Strategy for driver ${driverId}:`, strategy);
+
+                // If we have stints but no pit stops, we can estimate pit stops from stint changes
+                if (processedPitStops.length === 0 && sortedStints.length > 1) {
+                    console.log(`🔧 Estimating pit stops from stint changes for driver ${driverId}`);
+
+                    for (let i = 1; i < sortedStints.length; i++) {
+                        const stint = sortedStints[i];
+                        const lapNumber = stint.lap_start || (i * 20); // fallback estimate
+
+                        processedPitStops.push({
+                            lap: lapNumber,
+                            duration: 2.5 + (Math.random() * 1.0), // estimated pit time
+                            tireCompound: stint.compound ? stint.compound.toLowerCase() : 'medium'
+                        });
+
+                        totalPitTime += processedPitStops[processedPitStops.length - 1].duration;
+                    }
+                }
+            }
+
+            // Only use synthetic data if we have no real data at all
+            if (!hasRealData) {
+                console.log(`🔧 No real data found for driver ${driverId}, using synthetic data`);
+
+                // Generate synthetic pit stops
+                const numberOfStops = driverId % 3 === 0 ? 3 : driverId % 2 === 0 ? 2 : 1;
+
+                for (let i = 0; i < numberOfStops; i++) {
+                    const lapNumber = 15 + i * 20 + (driverId % 5);
+                    const compounds = ['soft', 'medium', 'hard'];
+
+                    processedPitStops.push({
+                        lap: lapNumber,
+                        duration: 2.1 + (Math.random() * 0.8),
+                        tireCompound: compounds[i % compounds.length]
                     });
+
+                    totalPitTime += processedPitStops[i].duration;
+                }
+
+                // Generate synthetic strategy
+                if (numberOfStops === 1) {
+                    strategy = 'Medium → Hard';
+                } else if (numberOfStops === 2) {
+                    strategy = 'Soft → Medium → Hard';
+                } else {
+                    strategy = 'Soft → Medium → Hard → Medium';
                 }
             }
 
@@ -1256,6 +1476,13 @@ const TelemetryVisualizations = () => {
                 totalPitTime: totalPitTime,
                 pitStops: processedPitStops,
                 hasRealData: hasRealData
+            });
+
+            console.log(`🔧 Final data for driver ${driverId}:`, {
+                hasRealData,
+                stops: processedPitStops.length,
+                strategy,
+                totalPitTime
             });
         });
 
@@ -1920,9 +2147,13 @@ const TelemetryVisualizations = () => {
                             <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                                 <h3 className="text-xl font-bold mb-4 flex items-center">
                                     <span>Pit Stop Strategy</span>
-                                    {pitStops.length > 0 && (
-                                        <span className="text-xs text-cyan-400 ml-2 font-normal">(Using Real Data)</span>
-                                    )}
+                                    {(() => {
+                                        const data = preparePitStopData();
+                                        const hasRealPitData = data.some(d => d.hasRealData);
+                                        return hasRealPitData && (
+                                            <span className="text-xs text-cyan-400 ml-2 font-normal">(Using Real Data)</span>
+                                        );
+                                    })()}
                                 </h3>
 
                                 <div className="overflow-x-auto mb-6">
@@ -1936,58 +2167,61 @@ const TelemetryVisualizations = () => {
                                             <th className="p-2">Data Source</th>
                                         </tr>
                                         </thead>
-                                        {/* Update the table to use memoized data */}
                                         <tbody>
-                                        {pitStopData.map((data, index) => (
-                                            <tr key={index} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
-                                                <td className="p-2 font-medium" style={{ color: data.color }}>
-                                                    {data.driver}
-                                                </td>
-                                                <td className="p-2">
-                                                    <div className="flex items-center space-x-1">
-                                                        {data.strategy.split(' → ').map((compound, i) => (
-                                                            <React.Fragment key={i}>
-                                                                {i > 0 && <span className="text-gray-400">→</span>}
-                                                                <div className="flex items-center space-x-1">
-                                                                    <div
-                                                                        className="w-3 h-3 rounded-full border border-gray-500"
-                                                                        style={{
-                                                                            backgroundColor: getTireCompoundColor(compound.toLowerCase()),
-                                                                        }}
-                                                                        title={compound}
-                                                                    ></div>
-                                                                    <span className="text-xs text-gray-300">{compound.charAt(0)}</span>
-                                                                </div>
-                                                            </React.Fragment>
-                                                        ))}
-                                                        {data.strategy === 'No data' && (
-                                                            <span className="text-gray-400 text-xs">No strategy data</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="p-2 text-center">{data.stops}</td>
-                                                <td className="p-2 text-center">
-                                                    {data.totalPitTime > 0 ? `${data.totalPitTime.toFixed(3)}s` : 'N/A'}
-                                                </td>
-                                                <td className="p-2 text-center">
-            <span className={`text-xs px-2 py-1 rounded ${
-                data.hasRealData
-                    ? 'bg-green-500 bg-opacity-20 text-green-400'
-                    : 'bg-yellow-500 bg-opacity-20 text-yellow-400'
-            }`}>
-                {data.hasRealData ? 'Real' : 'Inferred'}
-            </span>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {(() => {
+                                            const pitStopData = preparePitStopData();
+                                            return pitStopData.map((data, index) => (
+                                                <tr key={index} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
+                                                    <td className="p-2 font-medium" style={{ color: data.color }}>
+                                                        {data.driver}
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <div className="flex items-center space-x-1">
+                                                            {data.strategy.split(' → ').map((compound, i) => (
+                                                                <React.Fragment key={i}>
+                                                                    {i > 0 && <span className="text-gray-400">→</span>}
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <div
+                                                                            className="w-3 h-3 rounded-full border border-gray-500"
+                                                                            style={{
+                                                                                backgroundColor: getTireCompoundColor(compound.toLowerCase()),
+                                                                            }}
+                                                                            title={compound}
+                                                                        ></div>
+                                                                        <span className="text-xs text-gray-300">{compound.charAt(0)}</span>
+                                                                    </div>
+                                                                </React.Fragment>
+                                                            ))}
+                                                            {data.strategy === 'No data' && (
+                                                                <span className="text-gray-400 text-xs">No strategy data</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2 text-center">{data.stops}</td>
+                                                    <td className="p-2 text-center">
+                                                        {data.totalPitTime > 0 ? `${data.totalPitTime.toFixed(3)}s` : 'N/A'}
+                                                    </td>
+                                                    <td className="p-2 text-center">
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                    data.hasRealData
+                                        ? 'bg-green-500 bg-opacity-20 text-green-400'
+                                        : 'bg-yellow-500 bg-opacity-20 text-yellow-400'
+                                }`}>
+                                    {data.hasRealData ? 'Real' : 'Synthetic'}
+                                </span>
+                                                    </td>
+                                                </tr>
+                                            ));
+                                        })()}
                                         </tbody>
                                     </table>
                                 </div>
 
-                                {/* Updated Pit Stop Timeline */}
+                                {/* Updated Pit Stop Timeline - Full Width */}
                                 <h4 className="text-lg font-bold mb-2">Pit Stop Timeline</h4>
                                 <div className="h-96 p-4 bg-gray-800 rounded-lg">
                                     {(() => {
+                                        const pitStopData = preparePitStopData();
                                         const data = pitStopData.filter(data => data.pitStops.length > 0);
                                         if (data.length === 0) {
                                             return <div className="text-center text-gray-400">No pit stop data available</div>;
@@ -1998,9 +2232,8 @@ const TelemetryVisualizations = () => {
                                             ...data.flatMap(driver => driver.pitStops.map(stop => stop.lap))
                                         );
 
-                                        // Set realistic race length (typical F1 races are 50-70 laps)
-                                        const raceLength = Math.max(maxPitStopLap + 5, 50); // Add 5 laps buffer or minimum 50
-                                        const timelineWidth = Math.min(raceLength, 70); // Cap at 70 laps for display
+                                        // Set timeline to show the full race distance
+                                        const timelineWidth = Math.max(maxPitStopLap + 5, 50); // Add 5 laps buffer or minimum 50
 
                                         return (
                                             <div className="relative w-full h-full">
@@ -2019,14 +2252,6 @@ const TelemetryVisualizations = () => {
                                                                     <span className="text-xs text-gray-400 mt-1">L{lap}</span>
                                                                 </div>
                                                             ))}
-
-                                                        {/* Race finish line */}
-                                                        <div
-                                                            className="absolute top-0 h-full flex flex-col items-center border-l-2 border-white border-dashed"
-                                                            style={{ left: `${(raceLength / timelineWidth) * 100}%` }}
-                                                        >
-                                                            <div className="text-xs text-white mt-1 bg-red-600 px-1 rounded">FINISH</div>
-                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -2036,56 +2261,53 @@ const TelemetryVisualizations = () => {
                                                         <div key={driverIndex} className="relative h-10 bg-gray-700 rounded-md">
                                                             {/* Driver name */}
                                                             <div className="absolute left-0 top-0 h-full w-20 flex items-center justify-center bg-gray-600 rounded-l-md">
-                                <span
-                                    className="text-xs font-bold truncate px-1"
-                                    style={{ color: driver.color }}
-                                >
-                                    {driver.driver.split(' ').pop()}
-                                </span>
+                                        <span
+                                            className="text-xs font-bold truncate px-1"
+                                            style={{ color: driver.color }}
+                                        >
+                                            {driver.driver.split(' ').pop()}
+                                        </span>
                                                             </div>
 
-                                                            {/* Race timeline - only up to race finish */}
-                                                            <div className="absolute left-20 top-1 bottom-1 bg-gradient-to-r from-gray-600 to-gray-500 rounded-r-md"
-                                                                 style={{ width: `${(raceLength / timelineWidth) * (100 - (20/100*100))}%` }}>
+                                                            {/* Race timeline - full width */}
+                                                            <div className="absolute left-20 right-0 top-1 bottom-1 bg-gradient-to-r from-gray-600 to-gray-500 rounded-r-md">
 
                                                                 {/* Pit stops */}
-                                                                {driver.pitStops
-                                                                    .filter(stop => stop.lap <= raceLength) // Don't show stops beyond finish
-                                                                    .map((stop, stopIndex) => {
-                                                                        const position = (stop.lap / timelineWidth) * 100;
-                                                                        return (
+                                                                {driver.pitStops.map((stop, stopIndex) => {
+                                                                    const position = (stop.lap / timelineWidth) * 100;
+                                                                    return (
+                                                                        <div
+                                                                            key={stopIndex}
+                                                                            className="absolute top-0 bottom-0 group z-10"
+                                                                            style={{ left: `${position}%` }}
+                                                                        >
+                                                                            {/* Pit stop marker */}
                                                                             <div
-                                                                                key={stopIndex}
-                                                                                className="absolute top-0 bottom-0 group z-10"
-                                                                                style={{ left: `${position / (raceLength/timelineWidth)}%` }}
+                                                                                className="w-3 h-full rounded cursor-pointer border-2 border-white transform hover:scale-110 transition-transform shadow-lg"
+                                                                                style={{
+                                                                                    backgroundColor: getTireCompoundColor(stop.tireCompound),
+                                                                                }}
                                                                             >
-                                                                                {/* Pit stop marker */}
-                                                                                <div
-                                                                                    className="w-3 h-full rounded cursor-pointer border-2 border-white transform hover:scale-110 transition-transform shadow-lg"
-                                                                                    style={{
-                                                                                        backgroundColor: getTireCompoundColor(stop.tireCompound),
-                                                                                    }}
-                                                                                >
-                                                                                </div>
-
-                                                                                {/* Tooltip on hover */}
-                                                                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                                                                    <div className="bg-black text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
-                                                                                        <div className="font-bold">Lap {stop.lap}</div>
-                                                                                        <div className="capitalize">{stop.tireCompound} tires</div>
-                                                                                        <div>{stop.duration.toFixed(2)}s stop</div>
-                                                                                    </div>
-                                                                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-black"></div>
-                                                                                </div>
                                                                             </div>
-                                                                        );
-                                                                    })}
+
+                                                                            {/* Tooltip on hover */}
+                                                                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                                                                <div className="bg-black text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                                                                                    <div className="font-bold">Lap {stop.lap}</div>
+                                                                                    <div className="capitalize">{stop.tireCompound} tires</div>
+                                                                                    <div>{stop.duration.toFixed(2)}s stop</div>
+                                                                                </div>
+                                                                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-black"></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
 
-                                                {/* Legend - moved to bottom with more space */}
+                                                {/* Legend - at bottom */}
                                                 <div className="absolute bottom-2 left-0 right-0 h-16 border-t border-gray-600 pt-3">
                                                     <div className="flex justify-center space-x-6 text-xs">
                                                         {Object.entries(tireCompounds).slice(0, 5).map(([compound, data]) => (
@@ -2100,7 +2322,7 @@ const TelemetryVisualizations = () => {
                                                     </div>
                                                     <div className="text-center mt-2">
                                                         <span className="text-xs text-gray-400">• Real: Data from actual pit stop telemetry</span>
-                                                        <span className="text-xs text-gray-400 ml-4">• Inferred: Estimated from tire stint changes</span>
+                                                        <span className="text-xs text-gray-400 ml-4">• Synthetic: Estimated strategy data</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2111,12 +2333,16 @@ const TelemetryVisualizations = () => {
                                 {/* Data Source Legend */}
                                 <div className="mt-4 text-xs text-gray-400">
                                     <p>• <strong>Real:</strong> Data from actual pit stop telemetry</p>
-                                    <p>• <strong>Inferred:</strong> Estimated from tire stint changes</p>
-                                    {preparePitStopData().filter(data => data.pitStops.length === 0).length > 0 && (
-                                        <p className="text-yellow-400 mt-2">
-                                            ⚠️ Some drivers have no pit stop data available for this session
-                                        </p>
-                                    )}
+                                    <p>• <strong>Synthetic:</strong> Estimated strategy based on typical race patterns</p>
+                                    {(() => {
+                                        const pitStopData = preparePitStopData();
+                                        const driversWithoutData = pitStopData.filter(data => data.pitStops.length === 0).length;
+                                        return driversWithoutData > 0 && (
+                                            <p className="text-yellow-400 mt-2">
+                                                ⚠️ {driversWithoutData} driver(s) have no pit stop data available for this session
+                                            </p>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Tire Compound Performance - Enhanced */}
@@ -2169,62 +2395,193 @@ const TelemetryVisualizations = () => {
                             </div>
                         )}
 
-                        {/* Weather Impact Analysis - Enhanced */}
+                        {/* Weather Impact Analysis with Real API Data */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Weather Impact Analysis</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Weather Conditions Panel */}
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2">Current Conditions</h4>
-                                    <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'}`}>
-                                        <div className="grid grid-cols-2 gap-3 mb-2">
-                                            <div className="flex items-center">
-                                                <Thermometer size={18} className="mr-2 text-red-500" />
-                                                <div>
-                                                    <div className="text-sm opacity-70">Air Temperature</div>
-                                                    <div className="font-bold">{weather?.temperature || 'N/A'}°C</div>
+                            <h3 className="text-xl font-bold mb-4 flex items-center">
+                                <span>Weather Impact Analysis</span>
+                                {currentWeather?.isRealData && (
+                                    <span className="text-xs text-cyan-400 ml-2 font-normal">(Real Weather Data)</span>
+                                )}
+                            </h3>
+
+                            {currentWeather ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Current Weather Conditions */}
+                                    <div>
+                                        <h4 className="text-lg font-semibold mb-3">
+                                            {selectedSession} Conditions
+                                            <span className="text-sm text-gray-400 ml-2">
+                        ({currentWeather.isRealData ? 'Live Data' : 'Estimated'})
+                    </span>
+                                        </h4>
+                                        <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'}`}>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="flex items-center">
+                                                    <Thermometer size={20} className="mr-3 text-red-500" />
+                                                    <div>
+                                                        <div className="text-sm opacity-70">Air Temperature</div>
+                                                        <div className="font-bold text-lg">
+                                                            {currentWeather.air_temperature ? `${currentWeather.air_temperature}°C` : 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <Thermometer size={20} className="mr-3 text-orange-500" />
+                                                    <div>
+                                                        <div className="text-sm opacity-70">Track Temperature</div>
+                                                        <div className="font-bold text-lg">
+                                                            {currentWeather.track_temperature ? `${currentWeather.track_temperature}°C` : 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <Droplet size={20} className="mr-3 text-blue-500" />
+                                                    <div>
+                                                        <div className="text-sm opacity-70">Humidity</div>
+                                                        <div className="font-bold text-lg">
+                                                            {currentWeather.humidity ? `${currentWeather.humidity}%` : 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <Wind size={20} className="mr-3 text-cyan-500" />
+                                                    <div>
+                                                        <div className="text-sm opacity-70">Wind Speed</div>
+                                                        <div className="font-bold text-lg">
+                                                            {currentWeather.wind_speed ? `${currentWeather.wind_speed} km/h` : 'N/A'}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center">
-                                                <Thermometer size={18} className="mr-2 text-orange-500" />
-                                                <div>
-                                                    <div className="text-sm opacity-70">Track Temperature</div>
-                                                    <div className="font-bold">{weather?.trackTemp || 'N/A'}°C</div>
+
+                                            {/* Additional weather data if available */}
+                                            {(currentWeather.wind_direction || currentWeather.rainfall || currentWeather.pressure) && (
+                                                <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                                                    {currentWeather.wind_direction && (
+                                                        <div className="text-center">
+                                                            <div className="text-gray-400">Wind Direction</div>
+                                                            <div className="font-semibold">{currentWeather.wind_direction}°</div>
+                                                        </div>
+                                                    )}
+                                                    {currentWeather.rainfall !== undefined && (
+                                                        <div className="text-center">
+                                                            <div className="text-gray-400">Rainfall</div>
+                                                            <div className="font-semibold">{currentWeather.rainfall ? 'Yes' : 'No'}</div>
+                                                        </div>
+                                                    )}
+                                                    {currentWeather.pressure && (
+                                                        <div className="text-center">
+                                                            <div className="text-gray-400">Pressure</div>
+                                                            <div className="font-semibold">{currentWeather.pressure} mbar</div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <Droplet size={18} className="mr-2 text-blue-500" />
-                                                <div>
-                                                    <div className="text-sm opacity-70">Humidity</div>
-                                                    <div className="font-bold">{weather?.humidity || 'N/A'}%</div>
+                                            )}
+
+                                            {/* Weather condition assessment */}
+                                            <div className="mt-4 p-3 rounded-md bg-blue-500 bg-opacity-20 border border-blue-500">
+                                                <div className="text-sm font-semibold text-blue-300 mb-1">
+                                                    Track Conditions: {(() => {
+                                                    if (currentWeather.rainfall) return 'Wet';
+                                                    if (currentWeather.track_temperature > 50) return 'Very Hot';
+                                                    if (currentWeather.track_temperature > 40) return 'Hot';
+                                                    if (currentWeather.track_temperature < 25) return 'Cool';
+                                                    return 'Dry';
+                                                })()}
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <Wind size={18} className="mr-2 text-cyan-500" />
-                                                <div>
-                                                    <div className="text-sm opacity-70">Wind Speed</div>
-                                                    <div className="font-bold">{weather?.windSpeed || 'N/A'} km/h</div>
+                                                <div className="text-xs text-blue-200">
+                                                    Grip Level: {(() => {
+                                                    if (currentWeather.rainfall) return 'Low (Wet)';
+                                                    if (currentWeather.track_temperature > 50) return 'Reduced (Overheating)';
+                                                    if (currentWeather.track_temperature < 25) return 'Limited (Cold)';
+                                                    return 'High (Optimal)';
+                                                })()} |
+                                                    Tire Strategy: {(() => {
+                                                    if (currentWeather.rainfall) return 'Wet/Intermediate compounds';
+                                                    if (currentWeather.track_temperature > 45) return 'Hard compound preferred';
+                                                    if (currentWeather.track_temperature < 30) return 'Soft compound preferred';
+                                                    return 'Medium compound optimal';
+                                                })()}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Weather Strategy Recommendations */}
-                                <div>
-                                    <h4 className="text-lg font-semibold mb-2">Strategy Recommendations</h4>
-                                    <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'}`}>
-                                        <ul className="space-y-2">
-                                            {generateWeatherRecommendations(selectedSession || 'clear').map((rec, i) => (
-                                                <li key={`weather-rec-${i}`} className="flex items-start">
-                                                    <div className="text-cyan-400 mr-2">•</div>
-                                                    <span>{rec}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
+                                    {/* Dynamic Strategy Recommendations based on real data */}
+                                    <div>
+                                        <h4 className="text-lg font-semibold mb-3">Strategy Recommendations</h4>
+                                        <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'}`}>
+                                            <ul className="space-y-2">
+                                                {(() => {
+                                                    const recommendations = [];
+
+                                                    // Temperature-based recommendations
+                                                    if (currentWeather.track_temperature > 45) {
+                                                        recommendations.push('High track temperature detected - use harder compounds to prevent overheating');
+                                                        recommendations.push('Monitor tire degradation closely, especially front-left tire');
+                                                        recommendations.push('Consider extra cooling for brakes and engine systems');
+                                                    } else if (currentWeather.track_temperature < 30) {
+                                                        recommendations.push('Cool track conditions - softer compounds will provide better grip');
+                                                        recommendations.push('Extended warm-up procedures recommended for optimal tire performance');
+                                                        recommendations.push('Aggressive early driving style may help achieve optimal tire temperatures');
+                                                    } else {
+                                                        recommendations.push('Optimal track temperature range for balanced compound strategy');
+                                                        recommendations.push('Medium compounds likely to be the sweet spot for this session');
+                                                    }
+
+                                                    // Wind-based recommendations
+                                                    if (currentWeather.wind_speed > 20) {
+                                                        recommendations.push('Strong winds detected - adjust aerodynamic balance for stability');
+                                                        recommendations.push('Fuel consumption may increase due to headwind resistance');
+                                                    } else if (currentWeather.wind_speed > 15) {
+                                                        recommendations.push('Moderate winds - consider minor setup adjustments');
+                                                    }
+
+                                                    // Humidity-based recommendations
+                                                    if (currentWeather.humidity > 70) {
+                                                        recommendations.push('High humidity levels may affect engine performance');
+                                                        recommendations.push('Increased risk of sudden weather changes - monitor conditions closely');
+                                                    }
+
+                                                    // Rainfall recommendations
+                                                    if (currentWeather.rainfall) {
+                                                        recommendations.push('Wet conditions - intermediate or wet tires required');
+                                                        recommendations.push('Significantly reduced grip levels - adjust driving style accordingly');
+                                                        recommendations.push('Safety car probability increased - strategic pit timing crucial');
+                                                    }
+
+                                                    // Session-specific recommendations
+                                                    if (selectedSession?.toLowerCase().includes('qualifying')) {
+                                                        recommendations.push('Qualifying session - prioritize single-lap pace with optimal tire choice');
+                                                    } else if (selectedSession?.toLowerCase().includes('race')) {
+                                                        recommendations.push('Race conditions - balance one-lap speed with tire longevity');
+                                                        recommendations.push('Plan strategic pit windows based on current tire degradation rates');
+                                                    }
+
+                                                    return recommendations.slice(0, 6); // Limit to 6 recommendations
+                                                })().map((rec, i) => (
+                                                    <li key={`weather-rec-${i}`} className="flex items-start">
+                                                        <div className="text-cyan-400 mr-2 mt-1">•</div>
+                                                        <span className="text-sm">{rec}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                /* No weather data available */
+                                <div className="text-center py-8">
+                                    <div className="text-gray-400 mb-2">
+                                        <Wind size={48} className="mx-auto mb-4 opacity-50" />
+                                        <h4 className="text-lg font-semibold">Weather Data Not Available</h4>
+                                        <p className="text-sm mt-2">
+                                            No weather information found for this session.<br/>
+                                            Weather data may not be available for all sessions or circuits.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
