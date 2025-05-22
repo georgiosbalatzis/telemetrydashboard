@@ -12,19 +12,19 @@ const { Title } = Typography;
 const { Option } = Select;
 
 // F1 team colors for 2024/2025 season
+// Update the teamColors to ensure Red Bull has the right color
 const teamColors = {
     "Ferrari":      "#D40000",  // Rosso Corsa
     "Mercedes":     "#00A19B",  // Tiffany Green
-    "Red Bull":     "#3671C6",  // Red Bull Racing
+    "Red Bull":     "#0600EF",  // Red Bull Racing Blue - make sure this is right
     "McLaren":      "#FF8000",
     "Sauber":       "#52E252",  // Kick Sauber
     "Alpine":       "#EA80B0",
     "Aston Martin": "#229971",
     "Haas F1 Team": "#B6BABD",
-    "RB":           "#6692FF",  // Racing Bulls
+    "RB":           "#6692FF",  // Racing Bulls (different from Red Bull Racing)
     "Williams":     "#1868DB"
 };
-
 // Tire compounds data
 const tireCompounds = {
     soft: { color: "#FF3333", durability: 0.7, grip: 0.95, optimal_temp: 90 },
@@ -181,7 +181,6 @@ const TelemetryVisualizations = () => {
 
     // Load drivers when session changes
     useEffect(() => {
-        // Update the loadDriverData function
         const loadDriverData = async () => {
             if (!selectedCircuit || !selectedSession) return;
 
@@ -193,61 +192,166 @@ const TelemetryVisualizations = () => {
                     // First identify the team name
                     const teamName = driver.team_name;
 
+                    // Add specific logging for Red Bull drivers
+                    if (driver.full_name && (driver.full_name.includes('Verstappen') || driver.full_name.includes('Perez') || driver.full_name.includes('Pérez'))) {
+                        console.log(`🔍 RED BULL DRIVER DEBUG:`, {
+                            name: driver.full_name,
+                            teamName: teamName,
+                            teamColour: driver.team_colour,
+                            driverNumber: driver.driver_number
+                        });
+                    }
+
                     // Log the team name to see what we're getting from the API
                     console.log(`Driver ${driver.driver_number} (${driver.full_name}): Team = "${teamName}"`);
 
-                    // Enhanced team name matching - try exact match first, then partial matches
+                    // Enhanced team name matching with more Red Bull variations
+                    const teamMappings = {
+                        'Red Bull Racing': 'Red Bull',
+                        'Oracle Red Bull Racing': 'Red Bull',
+                        'Red Bull Racing Honda RBPT': 'Red Bull',
+                        'Red Bull Racing RBPT': 'Red Bull',
+                        'Red Bull': 'Red Bull',
+                        'RBR': 'Red Bull',
+                        'Scuderia Ferrari': 'Ferrari',
+                        'Ferrari': 'Ferrari',
+                        'Scuderia Ferrari HP': 'Ferrari',
+                        'Mercedes-AMG Petronas F1 Team': 'Mercedes',
+                        'Mercedes': 'Mercedes',
+                        'McLaren F1 Team': 'McLaren',
+                        'McLaren': 'McLaren',
+                        'Alpine F1 Team': 'Alpine',
+                        'Alpine': 'Alpine',
+                        'Aston Martin Aramco Cognizant F1 Team': 'Aston Martin',
+                        'Aston Martin': 'Aston Martin',
+                        'MoneyGram Haas F1 Team': 'Haas F1 Team',
+                        'Haas F1 Team': 'Haas F1 Team',
+                        'Haas': 'Haas F1 Team',
+                        'Visa Cash App RB F1 Team': 'RB',
+                        'AlphaTauri': 'RB',
+                        'RB': 'RB',
+                        'Williams Racing': 'Williams',
+                        'Williams': 'Williams',
+                        'Kick Sauber F1 Team': 'Sauber',
+                        'Sauber': 'Sauber',
+                        'Alfa Romeo': 'Sauber'
+                    };
+
                     let enhancedColor = null;
+                    let matchedTeam = null;
 
                     // Try exact match first
                     if (teamName && teamColors[teamName]) {
                         enhancedColor = getEnhancedTeamColor(teamName);
+                        matchedTeam = teamName;
+                        console.log(`Exact match found for "${teamName}"`);
                     } else if (teamName) {
                         // Try partial matches for common team name variations
-                        const teamMappings = {
-                            'Red Bull Racing': 'Red Bull',
-                            'Oracle Red Bull Racing': 'Red Bull',
-                            'Red Bull Racing Honda RBPT': 'Red Bull',
-                            'Scuderia Ferrari': 'Ferrari',
-                            'Ferrari': 'Ferrari',
-                            'Mercedes-AMG Petronas F1 Team': 'Mercedes',
-                            'Mercedes': 'Mercedes',
-                            'McLaren F1 Team': 'McLaren',
-                            'McLaren': 'McLaren',
-                            'Alpine F1 Team': 'Alpine',
-                            'Alpine': 'Alpine',
-                            'Aston Martin Aramco Cognizant F1 Team': 'Aston Martin',
-                            'Aston Martin': 'Aston Martin',
-                            'MoneyGram Haas F1 Team': 'Haas F1 Team',
-                            'Haas F1 Team': 'Haas F1 Team',
-                            'Haas': 'Haas F1 Team',
-                            'Visa Cash App RB F1 Team': 'RB',
-                            'AlphaTauri': 'RB',
-                            'RB': 'RB',
-                            'Williams Racing': 'Williams',
-                            'Williams': 'Williams',
-                            'Kick Sauber F1 Team': 'Sauber',
-                            'Sauber': 'Sauber',
-                            'Alfa Romeo': 'Sauber'
-                        };
-
-                        // Check if we have a mapping for this team name
                         const mappedTeam = teamMappings[teamName];
                         if (mappedTeam && teamColors[mappedTeam]) {
                             enhancedColor = getEnhancedTeamColor(mappedTeam);
+                            matchedTeam = mappedTeam;
                             console.log(`Mapped "${teamName}" to "${mappedTeam}"`);
+                        } else {
+                            // Try substring matching for Red Bull specifically
+                            if (teamName.toLowerCase().includes('red bull')) {
+                                enhancedColor = getEnhancedTeamColor('Red Bull');
+                                matchedTeam = 'Red Bull';
+                                console.log(`Substring matched "${teamName}" to "Red Bull"`);
+                            }
+                            // Try substring matching for other teams
+                            else if (teamName.toLowerCase().includes('ferrari')) {
+                                enhancedColor = getEnhancedTeamColor('Ferrari');
+                                matchedTeam = 'Ferrari';
+                                console.log(`Substring matched "${teamName}" to "Ferrari"`);
+                            }
+                            else if (teamName.toLowerCase().includes('mercedes')) {
+                                enhancedColor = getEnhancedTeamColor('Mercedes');
+                                matchedTeam = 'Mercedes';
+                                console.log(`Substring matched "${teamName}" to "Mercedes"`);
+                            }
+                            else if (teamName.toLowerCase().includes('mclaren')) {
+                                enhancedColor = getEnhancedTeamColor('McLaren');
+                                matchedTeam = 'McLaren';
+                                console.log(`Substring matched "${teamName}" to "McLaren"`);
+                            }
+                            else if (teamName.toLowerCase().includes('alpine')) {
+                                enhancedColor = getEnhancedTeamColor('Alpine');
+                                matchedTeam = 'Alpine';
+                                console.log(`Substring matched "${teamName}" to "Alpine"`);
+                            }
+                            else if (teamName.toLowerCase().includes('aston martin')) {
+                                enhancedColor = getEnhancedTeamColor('Aston Martin');
+                                matchedTeam = 'Aston Martin';
+                                console.log(`Substring matched "${teamName}" to "Aston Martin"`);
+                            }
+                            else if (teamName.toLowerCase().includes('haas')) {
+                                enhancedColor = getEnhancedTeamColor('Haas F1 Team');
+                                matchedTeam = 'Haas F1 Team';
+                                console.log(`Substring matched "${teamName}" to "Haas F1 Team"`);
+                            }
+                            else if (teamName.toLowerCase().includes('williams')) {
+                                enhancedColor = getEnhancedTeamColor('Williams');
+                                matchedTeam = 'Williams';
+                                console.log(`Substring matched "${teamName}" to "Williams"`);
+                            }
+                            else if (teamName.toLowerCase().includes('sauber') || teamName.toLowerCase().includes('kick')) {
+                                enhancedColor = getEnhancedTeamColor('Sauber');
+                                matchedTeam = 'Sauber';
+                                console.log(`Substring matched "${teamName}" to "Sauber"`);
+                            }
+                            else if (teamName.toLowerCase().includes('alphatauri') || (teamName.toLowerCase().includes('rb') && !teamName.toLowerCase().includes('red bull'))) {
+                                enhancedColor = getEnhancedTeamColor('RB');
+                                matchedTeam = 'RB';
+                                console.log(`Substring matched "${teamName}" to "RB"`);
+                            }
+                        }
+                    }
+
+                    // Special handling for Red Bull drivers if color still not found
+                    if (!enhancedColor && driver.full_name &&
+                        (driver.full_name.includes('Verstappen') || driver.full_name.includes('Pérez') || driver.full_name.includes('Perez'))) {
+                        console.warn(`🚨 Red Bull driver ${driver.full_name} not getting team color! Forcing Red Bull color.`);
+                        enhancedColor = getEnhancedTeamColor('Red Bull');
+                        matchedTeam = 'Red Bull (forced)';
+                    }
+
+                    // Additional fallback for specific driver numbers if we know them
+                    if (!enhancedColor) {
+                        // Max Verstappen is typically #1 or #33, Sergio Perez is typically #11
+                        if (driver.driver_number === 1 || driver.driver_number === 33) {
+                            console.warn(`🚨 Driver #${driver.driver_number} appears to be Verstappen, forcing Red Bull color`);
+                            enhancedColor = getEnhancedTeamColor('Red Bull');
+                            matchedTeam = 'Red Bull (by driver number)';
+                        } else if (driver.driver_number === 11) {
+                            console.warn(`🚨 Driver #${driver.driver_number} appears to be Perez, forcing Red Bull color`);
+                            enhancedColor = getEnhancedTeamColor('Red Bull');
+                            matchedTeam = 'Red Bull (by driver number)';
                         }
                     }
 
                     // Fallback to API color or default
                     const finalColor = enhancedColor || `#${driver.team_colour || "999999"}`;
 
+                    // Log color assignment for Red Bull drivers
+                    if (driver.full_name && (driver.full_name.includes('Verstappen') || driver.full_name.includes('Perez') || driver.full_name.includes('Pérez'))) {
+                        console.log(`🎨 RED BULL COLOR ASSIGNMENT:`, {
+                            name: driver.full_name,
+                            teamName: teamName,
+                            matchedTeam: matchedTeam,
+                            enhancedColor: enhancedColor,
+                            finalColor: finalColor,
+                            expectedColor: teamColors['Red Bull']
+                        });
+                    }
+
                     acc[driver.driver_number] = {
                         ...driver,
                         name: driver.full_name || `Driver ${driver.driver_number}`,
-                        team: teamName || "Unknown Team",
+                        team: matchedTeam || teamName || "Unknown Team",
                         color: finalColor,
-                        originalColor: `#${driver.team_colour || "999999"}` // Keep original for reference
+                        originalColor: `#${driver.team_colour || "999999"}`,
+                        originalTeamName: teamName // Keep original for debugging
                     };
                     return acc;
                 }, {});
