@@ -181,6 +181,7 @@ const TelemetryVisualizations = () => {
 
     // Load drivers when session changes
     useEffect(() => {
+        // Update the loadDriverData function
         const loadDriverData = async () => {
             if (!selectedCircuit || !selectedSession) return;
 
@@ -192,16 +193,60 @@ const TelemetryVisualizations = () => {
                     // First identify the team name
                     const teamName = driver.team_name;
 
-                    // Set the enhanced team color
-                    const enhancedColor = teamName && teamColors[teamName]
-                        ? getEnhancedTeamColor(teamName)
-                        : `#${driver.team_colour || "999999"}`;
+                    // Log the team name to see what we're getting from the API
+                    console.log(`Driver ${driver.driver_number} (${driver.full_name}): Team = "${teamName}"`);
+
+                    // Enhanced team name matching - try exact match first, then partial matches
+                    let enhancedColor = null;
+
+                    // Try exact match first
+                    if (teamName && teamColors[teamName]) {
+                        enhancedColor = getEnhancedTeamColor(teamName);
+                    } else if (teamName) {
+                        // Try partial matches for common team name variations
+                        const teamMappings = {
+                            'Red Bull Racing': 'Red Bull',
+                            'Oracle Red Bull Racing': 'Red Bull',
+                            'Red Bull Racing Honda RBPT': 'Red Bull',
+                            'Scuderia Ferrari': 'Ferrari',
+                            'Ferrari': 'Ferrari',
+                            'Mercedes-AMG Petronas F1 Team': 'Mercedes',
+                            'Mercedes': 'Mercedes',
+                            'McLaren F1 Team': 'McLaren',
+                            'McLaren': 'McLaren',
+                            'Alpine F1 Team': 'Alpine',
+                            'Alpine': 'Alpine',
+                            'Aston Martin Aramco Cognizant F1 Team': 'Aston Martin',
+                            'Aston Martin': 'Aston Martin',
+                            'MoneyGram Haas F1 Team': 'Haas F1 Team',
+                            'Haas F1 Team': 'Haas F1 Team',
+                            'Haas': 'Haas F1 Team',
+                            'Visa Cash App RB F1 Team': 'RB',
+                            'AlphaTauri': 'RB',
+                            'RB': 'RB',
+                            'Williams Racing': 'Williams',
+                            'Williams': 'Williams',
+                            'Kick Sauber F1 Team': 'Sauber',
+                            'Sauber': 'Sauber',
+                            'Alfa Romeo': 'Sauber'
+                        };
+
+                        // Check if we have a mapping for this team name
+                        const mappedTeam = teamMappings[teamName];
+                        if (mappedTeam && teamColors[mappedTeam]) {
+                            enhancedColor = getEnhancedTeamColor(mappedTeam);
+                            console.log(`Mapped "${teamName}" to "${mappedTeam}"`);
+                        }
+                    }
+
+                    // Fallback to API color or default
+                    const finalColor = enhancedColor || `#${driver.team_colour || "999999"}`;
 
                     acc[driver.driver_number] = {
                         ...driver,
                         name: driver.full_name || `Driver ${driver.driver_number}`,
                         team: teamName || "Unknown Team",
-                        color: enhancedColor,
+                        color: finalColor,
                         originalColor: `#${driver.team_colour || "999999"}` // Keep original for reference
                     };
                     return acc;
@@ -629,43 +674,83 @@ const TelemetryVisualizations = () => {
             console.log(`Found ${driverLapData.length} laps for driver ${driverId} and lap ${selectedLap}`);
 
             if (driverLapData.length > 0) {
-                // Log the exact lap data we found for debugging
-                console.log(`Lap data for driver ${driverId}, lap ${selectedLap}:`, driverLapData[0]);
+                const lapData = driverLapData[0];
+                console.log(`Lap data for driver ${driverId}, lap ${selectedLap}:`, lapData);
 
-                // For lap 1, handle the special case where sector 1 is missing
-                let s1 = driverLapData[0].sector_1_time;
-                const s2 = driverLapData[0].sector_2_time;
-                const s3 = driverLapData[0].sector_3_time;
-                let total = driverLapData[0].lap_time;
+                // Extract sector times - handle different possible field names
+                let s1 = lapData.sector_1_time || lapData.duration_sector_1 || lapData.s1;
+                let s2 = lapData.sector_2_time || lapData.duration_sector_2 || lapData.s2;
+                let s3 = lapData.sector_3_time || lapData.duration_sector_3 || lapData.s3;
+                let total = lapData.lap_time || lapData.lap_duration || lapData.total_time;
 
-                // Check if we have valid data for sectors 2 and 3
+                // Convert times to seconds if they're in milliseconds
+                const convertToSeconds = (time) => {
+                    if (!time || time === 0) return null;
+                    // If the time is greater than 300 seconds (5 minutes), it's likely in milliseconds
+                    return time > 300 ? time / 1000 : time;
+                };
+
+                s1 = convertToSeconds(s1);
+                s2 = convertToSeconds(s2);
+                s3 = convertToSeconds(s3);
+                total = convertToSeconds(total);
+
+                // Check if we have valid data for sectors
+                const hasS1 = s1 !== null && s1 !== undefined && s1 > 0;
                 const hasS2 = s2 !== null && s2 !== undefined && s2 > 0;
                 const hasS3 = s3 !== null && s3 !== undefined && s3 > 0;
+                const hasTotal = total !== null && total !== undefined && total > 0;
 
-                // For lap 1, calculate total from sectors 2 and 3 if it's missing
-                if (selectedLap === 1 && !total && hasS2 && hasS3) {
-                    // For first lap, we know sector 1 timing isn't recorded
-                    // so calculate a reasonable total from just sectors 2 and 3
-                    total = s2 + s3;
-                }
+                // Strategy for handling missing sector 1 times:
+                // 1. If we have total and other sectors, calculate S1
+                // 2. If we only have S2 and S3, estimate total and calculate S1
+                // 3. If we have no sector data but have total, distribute it roughly
 
-                // If we still don't have valid sector 1 but have valid total and other sectors,
-                // try to calculate it
-                if ((!s1 || s1 === 0) && total && hasS2 && hasS3) {
+                if (!hasS1 && hasTotal && hasS2 && hasS3) {
+                    // Calculate S1 from total minus other sectors
                     s1 = total - s2 - s3;
-                    if (s1 < 0) s1 = 0; // Sanity check
+                    if (s1 < 0 || s1 > 60) { // Sanity check - S1 shouldn't be negative or too large
+                        s1 = null;
+                    }
+                } else if (!hasS1 && hasS2 && hasS3 && !hasTotal) {
+                    // Estimate total from S2 and S3, then estimate S1
+                    // Typical S1 is about 30-35% of lap time
+                    const estimatedTotal = (s2 + s3) / 0.65; // S2+S3 typically ~65% of lap
+                    s1 = estimatedTotal * 0.35; // S1 typically ~35% of lap
+                    total = estimatedTotal;
+                } else if (!hasS1 && !hasS2 && !hasS3 && hasTotal) {
+                    // Distribute total time across sectors (rough estimates)
+                    s1 = total * 0.35; // ~35% for sector 1
+                    s2 = total * 0.33; // ~33% for sector 2
+                    s3 = total * 0.32; // ~32% for sector 3
                 }
 
-                const hasData = (s1 && s1 > 0) || (s2 && s2 > 0) || (s3 && s3 > 0) || (total && total > 0);
+                // Final validation and fallback
+                const finalS1 = (hasS1 || s1 > 0) ? s1 : null;
+                const finalS2 = hasS2 ? s2 : null;
+                const finalS3 = hasS3 ? s3 : null;
+                const finalTotal = hasTotal ? total : (finalS1 && finalS2 && finalS3) ? finalS1 + finalS2 + finalS3 : null;
+
+                const hasAnyData = finalS1 || finalS2 || finalS3 || finalTotal;
 
                 sectorTimes[driverId] = {
-                    s1: s1 || 0,
-                    s2: s2 || 0,
-                    s3: s3 || 0,
-                    total: total || 0,
-                    hasData: hasData,
-                    // For lap 1, we know sector 1 data is estimated
-                    isS1Estimated: selectedLap === 1
+                    s1: finalS1 || 0,
+                    s2: finalS2 || 0,
+                    s3: finalS3 || 0,
+                    total: finalTotal || 0,
+                    hasData: hasAnyData,
+                    hasS1: !!finalS1,
+                    hasS2: !!finalS2,
+                    hasS3: !!finalS3,
+                    isS1Estimated: !hasS1 && !!finalS1, // Track if S1 was estimated
+                    isS2Estimated: !hasS2 && !!finalS2,
+                    isS3Estimated: !hasS3 && !!finalS3,
+                    rawData: { // Keep raw data for debugging
+                        originalS1: lapData.sector_1_time,
+                        originalS2: lapData.sector_2_time,
+                        originalS3: lapData.sector_3_time,
+                        originalTotal: lapData.lap_time
+                    }
                 };
 
                 console.log(`Processed sector times for driver ${driverId}:`, sectorTimes[driverId]);
@@ -677,6 +762,9 @@ const TelemetryVisualizations = () => {
                     s3: 30.8 + (Math.random() * 0.5),
                     total: 90.5 + (Math.random() * 1.5),
                     hasData: false,
+                    hasS1: false,
+                    hasS2: false,
+                    hasS3: false,
                     isSynthetic: true
                 };
                 console.log(`No lap data found for driver ${driverId}, lap ${selectedLap}, using synthetic data`);
@@ -691,17 +779,18 @@ const TelemetryVisualizations = () => {
         const best = { s1: Infinity, s2: Infinity, s3: Infinity, total: Infinity };
 
         Object.values(sectorTimes).forEach(times => {
-            if (times.s1 > 0 && times.s1 < best.s1) best.s1 = times.s1;
-            if (times.s2 > 0 && times.s2 < best.s2) best.s2 = times.s2;
-            if (times.s3 > 0 && times.s3 < best.s3) best.s3 = times.s3;
-            if (times.total > 0 && times.total < best.total) best.total = times.total;
+            // Only consider times that have real data
+            if (times.hasS1 && times.s1 > 0 && times.s1 < best.s1) best.s1 = times.s1;
+            if (times.hasS2 && times.s2 > 0 && times.s2 < best.s2) best.s2 = times.s2;
+            if (times.hasS3 && times.s3 > 0 && times.s3 < best.s3) best.s3 = times.s3;
+            if (times.hasData && times.total > 0 && times.total < best.total) best.total = times.total;
         });
 
         return best;
     };
 
     // Format time with appropriate color based on comparison to best time
-    const formatTimeWithColor = (time, bestTime, noData, isEstimated = false) => {
+    const formatTimeWithColor = (time, bestTime, noData, isEstimated = false, hasRealData = true) => {
         if (noData || time === null || time === undefined || time === 0) {
             return <span className="text-gray-400">No data</span>;
         }
@@ -719,10 +808,13 @@ const TelemetryVisualizations = () => {
         const color = diff === 0 ? 'text-purple-500' : diff < 0.2 ? 'text-green-500' : diff < 0.5 ? 'text-yellow-500' : 'text-red-500';
         const sign = diff > 0 ? '+' : '';
 
+        // Show different indicators for estimated vs real data
+        const indicator = isEstimated ? '≈' : hasRealData ? '' : '*';
+
         return (
             <span className={color}>
-      {timeValue.toFixed(3)}s{isEstimated ? '*' : ''} {diff !== 0 && <span className="text-xs">({sign}{diff.toFixed(3)}s)</span>}
-    </span>
+            {indicator}{timeValue.toFixed(3)}s {diff !== 0 && <span className="text-xs">({sign}{diff.toFixed(3)}s)</span>}
+        </span>
         );
     };
 
@@ -1127,16 +1219,40 @@ const TelemetryVisualizations = () => {
                                                     {drivers[driverId]?.name || `Driver ${driverId}`}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {formatTimeWithColor(times.s1, bestSectorTimes.s1, !times.hasData, times.isS1Estimated)}
+                                                    {formatTimeWithColor(
+                                                        times.s1,
+                                                        bestSectorTimes.s1,
+                                                        !times.hasS1,
+                                                        times.isS1Estimated,
+                                                        times.hasData
+                                                    )}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {formatTimeWithColor(times.s2, bestSectorTimes.s2, !times.hasData)}
+                                                    {formatTimeWithColor(
+                                                        times.s2,
+                                                        bestSectorTimes.s2,
+                                                        !times.hasS2,
+                                                        times.isS2Estimated,
+                                                        times.hasData
+                                                    )}
                                                 </td>
                                                 <td className="p-2 text-center">
-                                                    {formatTimeWithColor(times.s3, bestSectorTimes.s3, !times.hasData)}
+                                                    {formatTimeWithColor(
+                                                        times.s3,
+                                                        bestSectorTimes.s3,
+                                                        !times.hasS3,
+                                                        times.isS3Estimated,
+                                                        times.hasData
+                                                    )}
                                                 </td>
                                                 <td className="p-2 text-center font-bold">
-                                                    {formatTimeWithColor(times.total, bestSectorTimes.total, !times.hasData)}
+                                                    {formatTimeWithColor(
+                                                        times.total,
+                                                        bestSectorTimes.total,
+                                                        !times.hasData,
+                                                        false, // Total time is rarely estimated
+                                                        times.hasData
+                                                    )}
                                                 </td>
                                                 <td className="p-2 text-center">
                                                     {times.hasData && times.total === bestSectorTimes.total ?
@@ -1153,12 +1269,13 @@ const TelemetryVisualizations = () => {
                                 </table>
                             </div>
 
-                            {/* Add note about estimated values */}
-                            {selectedLap === 1 && (
-                                <div className="text-xs text-gray-400 mt-2 text-center">
-                                    * Sector 1 times for lap 1 are estimated based on available sector data
-                                </div>
-                            )}
+                            {/* Add legend for sector times */}
+                            <div className="text-xs text-gray-400 mt-2 text-center">
+                                <div>≈ = Estimated time | * = Synthetic data | No symbol = Real telemetry</div>
+                                {Object.values(sectorTimes).some(times => times.isS1Estimated) && (
+                                    <div>Note: Some sector 1 times are estimated due to timing system limitations</div>
+                                )}
+                            </div>
                         </div>
                     )}
 
