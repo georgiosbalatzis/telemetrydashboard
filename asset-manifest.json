@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/f1-telemetry-dashboard/static/css/main.0a8c7ffc.css",
-    "main.js": "/f1-telemetry-dashboard/static/js/main.b687d89d.js",
+    "main.css": "/f1-telemetry-dashboard/static/css/main.168ffa6c.css",
+    "main.js": "/f1-telemetry-dashboard/static/js/main.ba9b7d39.js",
     "static/js/453.71f4ba9b.chunk.js": "/f1-telemetry-dashboard/static/js/453.71f4ba9b.chunk.js",
     "static/media/logo.png": "/f1-telemetry-dashboard/static/media/logo.1d4e7a12c41abf8c180f.png",
     "index.html": "/f1-telemetry-dashboard/index.html",
-    "main.0a8c7ffc.css.map": "/f1-telemetry-dashboard/static/css/main.0a8c7ffc.css.map",
-    "main.b687d89d.js.map": "/f1-telemetry-dashboard/static/js/main.b687d89d.js.map",
+    "main.168ffa6c.css.map": "/f1-telemetry-dashboard/static/css/main.168ffa6c.css.map",
+    "main.ba9b7d39.js.map": "/f1-telemetry-dashboard/static/js/main.ba9b7d39.js.map",
     "453.71f4ba9b.chunk.js.map": "/f1-telemetry-dashboard/static/js/453.71f4ba9b.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.0a8c7ffc.css",
-    "static/js/main.b687d89d.js"
+    "static/css/main.168ffa6c.css",
+    "static/js/main.ba9b7d39.js"
   ]
 }
