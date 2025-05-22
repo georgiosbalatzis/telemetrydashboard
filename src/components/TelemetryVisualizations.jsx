@@ -6,7 +6,7 @@ import { F1StoriesLogo, F1StoriesPoweredBy } from './F1StoriesBranding';
 import { Card, Row, Col, Select, Button, Spin, Alert, Space, Typography } from 'antd';
 import { useTelemetryContext } from '../context/TelemetryContext';
 import { loadData } from '../utils/dataLoader';
-import WeatherRadar from './WeatherRadar';
+import WindyWeatherRadar from './WindyWeatherRadar';
 import { Box, MenuItem, FormControl, InputLabel } from '@mui/material';
 
 const { Title } = Typography;
@@ -2659,7 +2659,7 @@ const TelemetryVisualizations = () => {
                             )}
                         </div>
                         {/* Weather Radar Section - ADD THIS HERE */}
-                        <WeatherRadar
+                        <WindyWeatherRadar
                             selectedCircuit={selectedCircuit}
                             isDarkMode={isDarkMode}
                         />
