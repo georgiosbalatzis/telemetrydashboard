@@ -6,6 +6,7 @@ import { F1StoriesLogo, F1StoriesPoweredBy } from './F1StoriesBranding';
 import { Card, Row, Col, Select, Button, Spin, Alert, Space, Typography } from 'antd';
 import { useTelemetryContext } from '../context/TelemetryContext';
 import { loadData } from '../utils/dataLoader';
+import WeatherRadar from './WeatherRadar';
 import { Box, MenuItem, FormControl, InputLabel } from '@mui/material';
 
 const { Title } = Typography;
@@ -280,6 +281,80 @@ const TelemetryVisualizations = () => {
 
         // Fallback to default color or any color in the driver object
         return driver.color || "#999999";
+    };
+
+
+    const normalizeCircuitName = (circuitName) => {
+        if (!circuitName) return null;
+
+        // Common circuit name mappings
+        const circuitMappings = {
+            'monaco': 'monaco',
+            'monte-carlo': 'monaco',
+            'silverstone': 'silverstone',
+            'british': 'silverstone',
+            'spa': 'spa',
+            'spa-francorchamps': 'spa',
+            'belgian': 'spa',
+            'monza': 'monza',
+            'italian': 'monza',
+            'interlagos': 'interlagos',
+            'brazilian': 'interlagos',
+            'sao-paulo': 'interlagos',
+            'suzuka': 'suzuka',
+            'japanese': 'suzuka',
+            'austin': 'austin',
+            'cota': 'austin',
+            'americas': 'austin',
+            'bahrain': 'bahrain',
+            'sakhir': 'bahrain',
+            'jeddah': 'jeddah',
+            'saudi': 'jeddah',
+            'australia': 'australia',
+            'melbourne': 'australia',
+            'albert-park': 'australia',
+            'imola': 'imola',
+            'emilia-romagna': 'imola',
+            'miami': 'miami',
+            'spain': 'spain',
+            'spanish': 'spain',
+            'barcelona': 'spain',
+            'catalunya': 'spain',
+            'canada': 'canada',
+            'canadian': 'canada',
+            'montreal': 'canada',
+            'villeneuve': 'canada',
+            'austria': 'austria',
+            'austrian': 'austria',
+            'red-bull-ring': 'austria',
+            'spielberg': 'austria',
+            'france': 'france',
+            'french': 'france',
+            'paul-ricard': 'france',
+            'hungary': 'hungary',
+            'hungarian': 'hungary',
+            'hungaroring': 'hungary',
+            'budapest': 'hungary',
+            'netherlands': 'netherlands',
+            'dutch': 'netherlands',
+            'zandvoort': 'netherlands',
+            'singapore': 'singapore',
+            'marina-bay': 'singapore',
+            'qatar': 'qatar',
+            'losail': 'qatar',
+            'mexico': 'mexico',
+            'mexican': 'mexico',
+            'hermanos-rodriguez': 'mexico',
+            'vegas': 'vegas',
+            'las-vegas': 'vegas',
+            'nevada': 'vegas',
+            'abu-dhabi': 'abu-dhabi',
+            'yas-marina': 'abu-dhabi',
+            'uae': 'abu-dhabi'
+        };
+
+        const normalized = circuitName.toLowerCase().replace(/\s+/g, '-');
+        return circuitMappings[normalized] || normalized;
     };
 
     const [circuits, setCircuits] = useState([]);
@@ -2583,6 +2658,11 @@ const TelemetryVisualizations = () => {
                                 </div>
                             )}
                         </div>
+                        {/* Weather Radar Section - ADD THIS HERE */}
+                        <WeatherRadar
+                            selectedCircuit={selectedCircuit}
+                            isDarkMode={isDarkMode}
+                        />
                     </div>
                 )}
 
