@@ -25,13 +25,44 @@ const teamColors = {
     "RB":           "#6692FF",  // Racing Bulls (different from Red Bull Racing)
     "Williams":     "#1868DB"
 };
-// Tire compounds data
+// Updated tire compounds with more variations
 const tireCompounds = {
     soft: { color: "#FF3333", durability: 0.7, grip: 0.95, optimal_temp: 90 },
     medium: { color: "#FFCC33", durability: 0.85, grip: 0.8, optimal_temp: 85 },
     hard: { color: "#FFFFFF", durability: 1, grip: 0.7, optimal_temp: 80 },
     intermediate: { color: "#33CC33", durability: 0.8, grip: 0.75, optimal_temp: 75 },
-    wet: { color: "#3333FF", durability: 0.9, grip: 0.6, optimal_temp: 65 }
+    wet: { color: "#3333FF", durability: 0.9, grip: 0.6, optimal_temp: 65 },
+
+};
+
+// Helper function to get tire compound color
+const getTireCompoundColor = (compound) => {
+    if (!compound) return '#999999';
+
+    const normalizedCompound = compound.toLowerCase().trim();
+
+    // Direct mapping
+    const colorMap = {
+        'soft': '#FF3333',
+        'medium': '#FFCC33',
+        'hard': '#FFFFFF',
+        'intermediate': '#33CC33',
+        'wet': '#3333FF',
+        //Variations
+        'SOFT': '#FF3333',
+        'MEDIUM': '#FFCC33',
+        'HARD': '#FFFFFF',
+        'INTERMEDIATE': '#33CC33',
+        'WET': '#3333FF',
+        // Handle variations
+        's': '#FF3333',
+        'm': '#FFCC33',
+        'h': '#FFFFFF',
+        'i': '#33CC33',
+        'w': '#3333FF'
+    };
+
+    return colorMap[normalizedCompound] || '#999999';
 };
 
 // Sample weather data
@@ -445,28 +476,109 @@ const TelemetryVisualizations = () => {
 
                 // Only get pit stop data for race sessions
                 if (selectedSession && selectedSession.toLowerCase().includes('race')) {
-                    // Get pit stop data
-                    const pitData = await loadData('pit_stops', {
-                        circuit_name: selectedCircuit,
-                        session_name: selectedSession,
-                        driver_number: selectedDrivers
-                    });
-                    setPitStops(pitData || []);
+                    console.log('🔧 Loading pit stop data using OpenF1 API...');
 
-                    // Get stint data
-                    const stintData = await loadData('stints', {
+                    // First, get the session_key for OpenF1 API
+                    const sessions = await loadData('schedule', {
                         circuit_name: selectedCircuit,
-                        session_name: selectedSession,
-                        driver_number: selectedDrivers
+                        session_name: selectedSession
                     });
-                    setStints(stintData || []);
+
+                    const sessionKey = sessions.length > 0 ? sessions[0].original_session_key : null;
+
+                    if (sessionKey) {
+                        console.log(`Found session key: ${sessionKey}`);
+
+                        // Load pit stops using OpenF1 API format
+                        try {
+                            const pitResponse = await fetch(`https://api.openf1.org/v1/pit?session_key=${sessionKey}`);
+                            if (pitResponse.ok) {
+                                const allPitData = await pitResponse.json();
+                                console.log(`OpenF1 pit data:`, allPitData.length, 'records');
+
+                                // Filter for selected drivers
+                                const filteredPitData = allPitData.filter(pit =>
+                                    selectedDrivers.includes(parseInt(pit.driver_number))
+                                );
+
+                                setPitStops(filteredPitData);
+                                console.log(`Filtered pit stops:`, filteredPitData.length);
+                            }
+                        } catch (error) {
+                            console.error('Error loading pit data:', error);
+                            setPitStops([]);
+                        }
+
+                        // Load stints using OpenF1 API format
+                        try {
+                            const stintsResponse = await fetch(`https://api.openf1.org/v1/stints?session_key=${sessionKey}`);
+                            if (stintsResponse.ok) {
+                                const allStintData = await stintsResponse.json();
+                                console.log(`OpenF1 stint data:`, allStintData.length, 'records');
+
+                                // Filter for selected drivers
+                                const filteredStintData = allStintData.filter(stint =>
+                                    selectedDrivers.includes(parseInt(stint.driver_number))
+                                );
+
+                                setStints(filteredStintData);
+                                console.log(`Filtered stints:`, filteredStintData.length);
+                            }
+                        } catch (error) {
+                            console.error('Error loading stint data:', error);
+                            setStints([]);
+                        }
+                    } else {
+                        console.warn('No session key found for OpenF1 API calls');
+                        setPitStops([]);
+                        setStints([]);
+                    }
                 } else {
-                    // Clear pit stop data for non-race sessions
                     setPitStops([]);
                     setStints([]);
                 }
             } catch (error) {
                 console.error('Error loading car data:', error);
+            }
+        };
+
+
+        // Add this debugging function to test what endpoints exist
+        const testAvailableEndpoints = async () => {
+            const testEndpoints = [
+                'pit',
+                'pit_stops',
+                'pitstops',
+                'pits',
+                'stints',
+                'stint',
+                'tire_stints',
+                'compounds',
+                'position',
+                'intervals',
+                'team_radio',
+                'race_control',
+                'car_data',
+                'location'
+            ];
+
+            console.log('🔍 Testing available OpenF1 API endpoints...');
+
+            for (const endpoint of testEndpoints) {
+                try {
+                    const response = await fetch(`https://api.openf1.org/v1/${endpoint}?session_key=9158`); // Use a known session key
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`✅ ${endpoint}: Available (${Array.isArray(data) ? data.length : 'object'} records)`);
+                        if (Array.isArray(data) && data.length > 0) {
+                            console.log(`   Sample ${endpoint} data:`, data[0]);
+                        }
+                    } else {
+                        console.log(`❌ ${endpoint}: Not available (${response.status})`);
+                    }
+                } catch (error) {
+                    console.log(`❌ ${endpoint}: Error (${error.message})`);
+                }
             }
         };
 
@@ -498,31 +610,100 @@ const TelemetryVisualizations = () => {
         }
     }, [carData, selectedDrivers]);
 
-    // Updated prepareChartData function to handle real data
+    // Add this function to calculate the actual lap duration
+    const getActualLapDuration = () => {
+        // First, try to get the maximum lap time from the actual lap data
+        if (laps.length > 0) {
+            const lapTimes = laps
+                .filter(lap => lap.lap_time && lap.lap_time > 0)
+                .map(lap => lap.lap_time);
+
+            if (lapTimes.length > 0) {
+                const maxLapTime = Math.max(...lapTimes);
+                console.log(`Found real lap times, max: ${maxLapTime}s`);
+                return maxLapTime;
+            }
+        }
+
+        // Fallback to circuit-specific approximate lap times
+        const circuitLapTimes = {
+            'monaco': 78,          // Monaco GP
+            'monza': 80,           // Italian GP
+            'silverstone': 90,     // British GP
+            'spa': 105,            // Belgian GP (longest)
+            'suzuka': 90,          // Japanese GP
+            'interlagos': 70,      // Brazilian GP
+            'austin': 95,          // US GP
+            'bahrain': 87,         // Bahrain GP
+            'jeddah': 90,          // Saudi Arabia GP
+            'australia': 78,       // Australian GP
+            'imola': 75,           // Emilia Romagna GP
+            'miami': 90,           // Miami GP
+            'spain': 78,           // Spanish GP
+            'canada': 70,          // Canadian GP
+            'austria': 65,         // Austrian GP
+            'france': 90,          // French GP (if still on calendar)
+            'hungary': 75,         // Hungarian GP
+            'netherlands': 72,     // Dutch GP
+            'singapore': 100,      // Singapore GP
+            'japan': 90,           // Japanese GP
+            'qatar': 85,           // Qatar GP
+            'mexico': 75,          // Mexican GP
+            'vegas': 95,           // Las Vegas GP
+            'abu-dhabi': 85,       // Abu Dhabi GP
+            'zandvoort': 72,       // Dutch GP
+            'paul-ricard': 90,     // French GP
+            'hungaroring': 75,     // Hungarian GP
+            'spa-francorchamps': 105 // Belgian GP
+        };
+
+        // Try to match the selected circuit to known lap times
+        if (selectedCircuit) {
+            const circuitKey = selectedCircuit.toLowerCase().replace(/\s+/g, '-');
+
+            // Try direct match first
+            if (circuitLapTimes[circuitKey]) {
+                console.log(`Using circuit-specific lap time for ${selectedCircuit}: ${circuitLapTimes[circuitKey]}s`);
+                return circuitLapTimes[circuitKey];
+            }
+
+            // Try partial matching
+            for (const [key, time] of Object.entries(circuitLapTimes)) {
+                if (circuitKey.includes(key) || key.includes(circuitKey)) {
+                    console.log(`Using partial match lap time for ${selectedCircuit}: ${time}s`);
+                    return time;
+                }
+            }
+        }
+
+        // Final fallback
+        console.log(`Using default lap time for ${selectedCircuit || 'unknown circuit'}: 90s`);
+        return 90;
+    };
+
+    // Updated prepareChartData function with dynamic lap duration
     const prepareChartData = (realData = []) => {
         console.log('Preparing chart data with real data:', realData.length > 0);
         const chartData = [];
 
+        // Get the actual lap duration for this circuit/session
+        const actualLapDuration = getActualLapDuration();
+        console.log(`Using lap duration: ${actualLapDuration}s for circuit: ${selectedCircuit}`);
+
         // Check if we have real data to use
         if (realData && realData.length > 0) {
-            // Group data by distance or time
+            // ... existing real data handling code remains the same ...
             const groupedData = {};
 
-            // Find the common data point in the telemetry
-            // Note: Different APIs may have different data structures
             const samplePoint = realData[0];
             const hasDistance = 'distance' in samplePoint;
             const hasTime = 'time' in samplePoint;
 
-            // Determine what to use for X-axis
             const xAxisKey = hasDistance ? 'distance' : hasTime ? 'time' : 'index';
 
-            // Process real telemetry data
             realData.forEach(point => {
-                // Use a common key to group data points from different drivers
                 const key = point[xAxisKey] || point.timestamp || point.index || 0;
 
-                // Create data point if it doesn't exist
                 if (!groupedData[key]) {
                     groupedData[key] = {
                         distance: point.distance || 0,
@@ -531,21 +712,16 @@ const TelemetryVisualizations = () => {
                     };
                 }
 
-                // Add driver-specific data
                 const driverId = point.driver_number;
                 if (driverId) {
-                    // Map the data to our chart keys
-
-                    // Speed data (may be in different formats)
+                    // ... existing data mapping code ...
                     if ('speed' in point) {
                         groupedData[key][`speed${driverId}`] = point.speed;
                     } else if ('Speed' in point) {
                         groupedData[key][`speed${driverId}`] = point.Speed;
                     }
 
-                    // Throttle data (may be 0-1 or 0-100)
                     if ('throttle' in point) {
-                        // Convert to percentage if 0-1 scale
                         const throttleValue = point.throttle > 1 ? point.throttle : point.throttle * 100;
                         groupedData[key][`throttle${driverId}`] = throttleValue;
                     } else if ('Throttle' in point) {
@@ -553,7 +729,6 @@ const TelemetryVisualizations = () => {
                         groupedData[key][`throttle${driverId}`] = throttleValue;
                     }
 
-                    // Brake data (may be 0-1 or 0-100)
                     if ('brake' in point) {
                         const brakeValue = point.brake > 1 ? point.brake : point.brake * 100;
                         groupedData[key][`brake${driverId}`] = brakeValue;
@@ -562,32 +737,26 @@ const TelemetryVisualizations = () => {
                         groupedData[key][`brake${driverId}`] = brakeValue;
                     }
 
-                    // Other telemetry data if available
                     const dataKeys = Object.keys(point);
 
-                    // Check for tire temperature data
                     if (dataKeys.some(k => k.includes('temp') || k.includes('Temp'))) {
                         const tempKey = dataKeys.find(k => k.includes('temp') || k.includes('Temp'));
                         if (tempKey) {
                             groupedData[key][`tireTemp${driverId}`] = point[tempKey];
                         }
                     } else {
-                        // Generate synthetic tire temp if not available
                         groupedData[key][`tireTemp${driverId}`] = 85 + (Math.random() * 15);
                     }
 
-                    // Check for tire wear data
                     if (dataKeys.some(k => k.includes('wear') || k.includes('Wear'))) {
                         const wearKey = dataKeys.find(k => k.includes('wear') || k.includes('Wear'));
                         if (wearKey) {
                             groupedData[key][`tireWear${driverId}`] = point[wearKey];
                         }
                     } else {
-                        // Generate synthetic tire wear if not available
                         groupedData[key][`tireWear${driverId}`] = Math.max(0, 100 - (selectedLap * 2) - (Math.random() * 5));
                     }
 
-                    // DRS, RPM, and other data if available
                     if ('drs' in point) {
                         groupedData[key][`drs${driverId}`] = point.drs;
                     }
@@ -598,15 +767,12 @@ const TelemetryVisualizations = () => {
                 }
             });
 
-            // Convert grouped data to array for charts
             chartData.push(...Object.values(groupedData));
 
-            // Sort data by distance, time, or index
             if (hasDistance) {
                 chartData.sort((a, b) => a.distance - b.distance);
             } else if (hasTime) {
                 chartData.sort((a, b) => {
-                    // Handle time strings or objects
                     if (typeof a.time === 'string' && typeof b.time === 'string') {
                         return a.time.localeCompare(b.time);
                     }
@@ -618,75 +784,77 @@ const TelemetryVisualizations = () => {
 
             console.log('Prepared real chart data:', chartData.length, 'points');
         } else {
-            // Generate synthetic data points for the lap when no real data is available
-            console.log('Generating synthetic chart data with spiky appearance');
+            // Generate synthetic data points with the correct lap duration
+            console.log(`Generating synthetic chart data with ${actualLapDuration}s lap duration`);
             const numPoints = 50; // Number of data points per lap
-            const lapDuration = 90; // Average lap duration in seconds
 
-            // Create base data points
+            // Create base data points with the actual lap duration
             for (let i = 0; i < numPoints; i++) {
-                const time = (i * lapDuration / numPoints).toFixed(2);
+                const time = (i * actualLapDuration / numPoints);
+                const minutes = Math.floor(time / 60);
+                const seconds = (time % 60).toFixed(2);
+
                 chartData.push({
                     index: i,
                     distance: i * 100, // Approximate distance in meters
-                    time: `${Math.floor(time / 60)}:${(time % 60).toFixed(2).padStart(5, '0')}`
+                    time: `${minutes}:${seconds.padStart(5, '0')}`
                 });
             }
 
-            // Define more dramatic track sections with steeper transitions
-            const trackSections = [
-                { start: 0, end: 6, type: 'straight' },
-                { start: 6, end: 9, type: 'hardBraking' },  // New type for dramatic braking
-                { start: 9, end: 12, type: 'corner' },
-                { start: 12, end: 20, type: 'straight' },
-                { start: 20, end: 23, type: 'hardBraking' },
-                { start: 23, end: 27, type: 'corner' },
-                { start: 27, end: 33, type: 'straight' },
-                { start: 33, end: 36, type: 'hardBraking' },
-                { start: 36, end: 40, type: 'chicane' },
-                { start: 40, end: 50, type: 'straight' }
-            ];
+            // Define track sections that scale with lap duration
+            const sectionCount = Math.max(8, Math.floor(actualLapDuration / 10)); // More sections for longer tracks
+            const trackSections = [];
 
-            // Add data for each selected driver with more dramatic variations
+            // Dynamically create track sections based on lap duration
+            let currentStart = 0;
+            const sectionTypes = ['straight', 'hardBraking', 'corner', 'straight', 'hardBraking', 'corner', 'chicane', 'straight'];
+
+            for (let i = 0; i < sectionCount; i++) {
+                const sectionLength = Math.floor(numPoints / sectionCount);
+                const sectionEnd = Math.min(currentStart + sectionLength, numPoints);
+
+                trackSections.push({
+                    start: currentStart,
+                    end: sectionEnd,
+                    type: sectionTypes[i % sectionTypes.length]
+                });
+
+                currentStart = sectionEnd;
+            }
+
+            console.log(`Created ${trackSections.length} track sections for ${actualLapDuration}s lap`);
+
+            // Add data for each selected driver with the correct timing
             selectedDrivers.forEach(driverId => {
                 if (drivers[driverId]) {
-                    // Different base speeds for different drivers
                     const driverIndex = parseInt(driverId) % 5;
-                    const baseSpeed = 280 - (driverIndex * 5); // Different baseline speeds
-                    const baseThrottle = 0.8 + (Math.random() * 0.2); // Base throttle between 80-100%
+                    const baseSpeed = 280 - (driverIndex * 5);
+                    const baseThrottle = 0.8 + (Math.random() * 0.2);
 
-                    // Driver style factors with more variation
                     const driverLateBreaking = 0.7 + (((parseInt(driverId) % 10) / 10) * 0.6);
                     const driverCornerSpeed = 0.8 + (((parseInt(driverId) % 7) / 10) * 0.4);
                     const driverAcceleration = 0.9 + (((parseInt(driverId) % 5) / 10) * 0.3);
 
-                    // More dramatic speed profiles for each driver
                     chartData.forEach((point, index) => {
-                        // Find current track section
                         const currentSection = trackSections.find(
                             section => index >= section.start && index < section.end
                         ) || { type: 'straight' };
 
-                        // More dramatic speed variations based on track section
                         let speedVariation = 0;
                         let isBraking = false;
 
                         switch (currentSection.type) {
                             case 'straight':
-                                // Speed increases on straights with a slight wave pattern
                                 speedVariation = 40 + Math.sin(index * 0.8) * 10;
                                 break;
                             case 'hardBraking':
-                                // Dramatic speed decrease for hard braking zones
                                 speedVariation = -70 - (Math.random() * 30);
                                 isBraking = true;
                                 break;
                             case 'corner':
-                                // Lower speed in corners with some variation
                                 speedVariation = -50 * driverCornerSpeed - (Math.sin(index) * 10);
                                 break;
                             case 'chicane':
-                                // Rapid changes in chicanes
                                 speedVariation = -30 + Math.sin(index * 1.5) * 25;
                                 isBraking = index % 2 === 0;
                                 break;
@@ -694,18 +862,16 @@ const TelemetryVisualizations = () => {
                                 speedVariation = 0;
                         }
 
-                        // Apply driver style with larger variations
                         const speed = Math.max(
-                            70, // Lower minimum speed for more range
+                            70,
                             Math.min(
-                                330, // Higher top speed
+                                330,
                                 baseSpeed + speedVariation * (isBraking ? driverLateBreaking : driverAcceleration)
                             )
                         );
 
-                        // More dramatic throttle and brake patterns
                         const throttle = isBraking
-                            ? Math.max(0, Math.min(30, Math.random() * 30))  // Some throttle even during braking
+                            ? Math.max(0, Math.min(30, Math.random() * 30))
                             : Math.min(100, baseThrottle * 100 * (
                                 currentSection.type === 'straight'
                                     ? 1
@@ -713,10 +879,9 @@ const TelemetryVisualizations = () => {
                             ));
 
                         const brake = isBraking
-                            ? 70 + (Math.random() * 30) // More pronounced braking
+                            ? 70 + (Math.random() * 30)
                             : Math.max(0, Math.min(20, (-speedVariation / 5) * driverLateBreaking));
 
-                        // Tire temperature and wear simulation with more dynamic patterns
                         const cornerIntensity = currentSection.type === 'corner' ? 8 :
                             currentSection.type === 'chicane' ? 6 : 0;
 
@@ -730,7 +895,6 @@ const TelemetryVisualizations = () => {
                         const wearVariation = (Math.random() * 5) + cornerWear;
                         const tireWear = Math.max(0, baseWear - wearVariation);
 
-                        // Add to chart data with integer values for sharper transitions
                         point[`speed${driverId}`] = Math.floor(speed);
                         point[`throttle${driverId}`] = Math.floor(throttle);
                         point[`brake${driverId}`] = Math.floor(brake);
@@ -740,18 +904,20 @@ const TelemetryVisualizations = () => {
                 }
             });
 
-            // Add random DRS activation zones for straights
+            // Add DRS zones based on lap duration
+            const drsZoneStart1 = Math.floor(numPoints * 0.2);
+            const drsZoneEnd1 = Math.floor(numPoints * 0.4);
+            const drsZoneStart2 = Math.floor(numPoints * 0.8);
+
             chartData.forEach((point, index) => {
-                if (index > 10 && index < 20 || index > 40) {
+                if ((index >= drsZoneStart1 && index <= drsZoneEnd1) || index >= drsZoneStart2) {
                     selectedDrivers.forEach(driverId => {
-                        // Random DRS activation for some drivers on straights
                         point[`drs${driverId}`] = Math.random() > 0.5 ? 1 : 0;
                     });
                 }
             });
         }
 
-        // Return the processed chart data
         return chartData;
     };
 
@@ -1006,29 +1172,90 @@ const TelemetryVisualizations = () => {
         }
     };
 
-    // Generate pit stop strategy data
+    // Update the preparePitStopData function to handle the starting compound
     const preparePitStopData = () => {
+        console.log('🔧 preparePitStopData called');
         const pitStopData = [];
 
         selectedDrivers.forEach(driverId => {
-            const driverPitStops = pitStops.filter(pit => pit.driver_number === driverId);
             const driverName = drivers[driverId]?.name || `Driver ${driverId}`;
             const driverColor = getDriverColor(driverId);
 
-            // If no real pit stop data, generate synthetic data
-            const pitStopsToUse = driverPitStops.length > 0 ? driverPitStops : generateSyntheticPitStops(driverId);
+            const driverPitStops = pitStops.filter(pit => {
+                const pitDriverId = pit.driver_number || pit.driver_id || pit.driverId;
+                return pitDriverId == driverId;
+            });
+
+            const driverStints = stints.filter(stint => {
+                const stintDriverId = stint.driver_number || stint.driver_id || stint.driverId;
+                return stintDriverId == driverId;
+            });
+
+            let processedPitStops = [];
+            let totalPitTime = 0;
+            let hasRealData = false;
+            let strategy = 'No data';
+
+            if (driverPitStops.length > 0) {
+                hasRealData = true;
+                processedPitStops = driverPitStops.map(stop => {
+                    const lapNumber = stop.lap_number || stop.lap || stop.pit_lap || 0;
+                    const duration = stop.pit_duration || stop.duration || stop.pit_time || 0;
+                    const durationInSeconds = duration > 100 ? duration / 1000 : duration;
+
+                    totalPitTime += durationInSeconds;
+
+                    let tireCompound = stop.compound || stop.tire_compound || stop.tyre_compound || 'medium';
+                    tireCompound = tireCompound.toLowerCase();
+
+                    return {
+                        lap: lapNumber,
+                        duration: durationInSeconds,
+                        tireCompound: tireCompound
+                    };
+                });
+
+                processedPitStops.sort((a, b) => a.lap - b.lap);
+            }
+
+            // Build complete strategy including starting compound
+            if (driverStints.length > 0) {
+                // Sort stints by stint number or start lap
+                const sortedStints = driverStints.sort((a, b) => {
+                    const aStart = a.stint_number || a.lap_start || a.start_lap || 0;
+                    const bStart = b.stint_number || b.lap_start || b.start_lap || 0;
+                    return aStart - bStart;
+                });
+
+                strategy = sortedStints
+                    .map(stint => {
+                        const compound = stint.compound || stint.tire_compound || stint.tyre_compound || 'Medium';
+                        return compound.charAt(0).toUpperCase() + compound.slice(1).toLowerCase();
+                    })
+                    .join(' → ');
+
+                // Update pit stop compounds based on stint transitions
+                if (processedPitStops.length > 0 && sortedStints.length > 1) {
+                    processedPitStops.forEach((stop, index) => {
+                        // The pit stop should lead to the next stint
+                        if (index + 1 < sortedStints.length) {
+                            const nextStint = sortedStints[index + 1];
+                            if (nextStint && nextStint.compound) {
+                                stop.tireCompound = nextStint.compound.toLowerCase();
+                            }
+                        }
+                    });
+                }
+            }
 
             pitStopData.push({
                 driver: driverName,
                 color: driverColor,
-                stops: pitStopsToUse.length,
-                strategy: getDriverTireStrategy(driverId),
-                totalPitTime: pitStopsToUse.reduce((sum, stop) => sum + (stop.pit_duration || 3.0), 0),
-                pitStops: pitStopsToUse.map(stop => ({
-                    lap: stop.lap_number || stop.lap,
-                    duration: stop.pit_duration || stop.duration,
-                    tireCompound: getTireCompound(driverId, stop.lap_number || stop.lap)
-                }))
+                stops: processedPitStops.length,
+                strategy: strategy,
+                totalPitTime: totalPitTime,
+                pitStops: processedPitStops,
+                hasRealData: hasRealData
             });
         });
 
@@ -1674,10 +1901,29 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
+                        {/* Add this before the pit stop strategy table */}
+                        <div className="mb-4 p-3 rounded-lg bg-blue-500 bg-opacity-20 border border-blue-500 text-blue-300">
+                            <h4 className="font-bold mb-1">Data Availability</h4>
+                            <p className="text-sm">
+                                Pit Stops: {pitStops.length > 0 ? `${pitStops.length} records found` : 'No data available'} |
+                                Stints: {stints.length > 0 ? `${stints.length} records found` : 'No data available'}
+                            </p>
+                            {pitStops.length === 0 && stints.length === 0 && (
+                                <p className="text-xs mt-1 text-yellow-300">
+                                    ⚠️ Using synthetic data for demonstration. Real pit stop data may not be available for this session.
+                                </p>
+                            )}
+                        </div>
+
                         {/* Pit Stop Strategy Section - Enhanced */}
                         {selectedSession && selectedSession.toLowerCase().includes('race') && (
                             <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                <h3 className="text-xl font-bold mb-4">Pit Stop Strategy</h3>
+                                <h3 className="text-xl font-bold mb-4 flex items-center">
+                                    <span>Pit Stop Strategy</span>
+                                    {pitStops.length > 0 && (
+                                        <span className="text-xs text-cyan-400 ml-2 font-normal">(Using Real Data)</span>
+                                    )}
+                                </h3>
 
                                 <div className="overflow-x-auto mb-6">
                                     <table className="w-full text-sm">
@@ -1687,8 +1933,10 @@ const TelemetryVisualizations = () => {
                                             <th className="p-2">Strategy</th>
                                             <th className="p-2">Stops</th>
                                             <th className="p-2">Total Pit Time</th>
+                                            <th className="p-2">Data Source</th>
                                         </tr>
                                         </thead>
+                                        {/* Update the table to use memoized data */}
                                         <tbody>
                                         {pitStopData.map((data, index) => (
                                             <tr key={index} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
@@ -1696,95 +1944,179 @@ const TelemetryVisualizations = () => {
                                                     {data.driver}
                                                 </td>
                                                 <td className="p-2">
-                                                    <div className="flex items-center">
-                                                        {data.pitStops.map((stop, i) => (
-                                                            <React.Fragment key={`stop-${i}-${stop.lap}`}>
-                                                                {i > 0 && <span className="mx-1">→</span>}
-                                                                <div
-                                                                    className="w-4 h-4 rounded-full"
-                                                                    style={{
-                                                                        backgroundColor: tireCompounds[stop.tireCompound]?.color || '#999',
-                                                                        border: '1px solid #666',
-                                                                        boxShadow: isDarkMode ? '0 0 3px rgba(255,255,255,0.3)' : '0 0 3px rgba(0,0,0,0.3)'
-                                                                    }}
-                                                                    title={`${stop.tireCompound?.charAt(0).toUpperCase() + stop.tireCompound?.slice(1) || 'Unknown'} (Lap ${stop.lap})`}
-                                                                ></div>
+                                                    <div className="flex items-center space-x-1">
+                                                        {data.strategy.split(' → ').map((compound, i) => (
+                                                            <React.Fragment key={i}>
+                                                                {i > 0 && <span className="text-gray-400">→</span>}
+                                                                <div className="flex items-center space-x-1">
+                                                                    <div
+                                                                        className="w-3 h-3 rounded-full border border-gray-500"
+                                                                        style={{
+                                                                            backgroundColor: getTireCompoundColor(compound.toLowerCase()),
+                                                                        }}
+                                                                        title={compound}
+                                                                    ></div>
+                                                                    <span className="text-xs text-gray-300">{compound.charAt(0)}</span>
+                                                                </div>
                                                             </React.Fragment>
                                                         ))}
+                                                        {data.strategy === 'No data' && (
+                                                            <span className="text-gray-400 text-xs">No strategy data</span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="p-2 text-center">{data.stops}</td>
-                                                <td className="p-2 text-center">{data.totalPitTime.toFixed(3)}s</td>
+                                                <td className="p-2 text-center">
+                                                    {data.totalPitTime > 0 ? `${data.totalPitTime.toFixed(3)}s` : 'N/A'}
+                                                </td>
+                                                <td className="p-2 text-center">
+            <span className={`text-xs px-2 py-1 rounded ${
+                data.hasRealData
+                    ? 'bg-green-500 bg-opacity-20 text-green-400'
+                    : 'bg-yellow-500 bg-opacity-20 text-yellow-400'
+            }`}>
+                {data.hasRealData ? 'Real' : 'Inferred'}
+            </span>
+                                                </td>
                                             </tr>
                                         ))}
                                         </tbody>
                                     </table>
                                 </div>
 
-                                {/* Pit Stop Timeline Visualization - Enhanced */}
+                                {/* Updated Pit Stop Timeline */}
                                 <h4 className="text-lg font-bold mb-2">Pit Stop Timeline</h4>
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            layout="vertical"
-                                            data={pitStopData}
-                                            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
-                                        >
-                                            <CartesianGrid
-                                                strokeDasharray="3 3"
-                                                opacity={0.2}
-                                                horizontal={false}
-                                                stroke={isDarkMode ? "#555" : "#ccc"}
-                                            />
-                                            <XAxis
-                                                type="number"
-                                                domain={[0, 70]}
-                                                label={{
-                                                    value: 'Lap Number',
-                                                    position: 'insideBottom',
-                                                    offset: -5,
-                                                    fill: chartTheme.xAxis.label.fill
-                                                }}
-                                                tick={chartTheme.xAxis.tick}
-                                            />
-                                            <YAxis
-                                                type="category"
-                                                dataKey="driver"
-                                                width={80}
-                                                tick={chartTheme.yAxis.tick}
-                                            />
-                                            <Tooltip
-                                                contentStyle={chartTheme.tooltip.contentStyle}
-                                                formatter={(value, name, props) => {
-                                                    if (name === 'stop') {
-                                                        const stop = pitStopData[props.index].pitStops[value];
-                                                        return [`Lap ${stop.lap}: ${stop.tireCompound} tires (${stop.duration.toFixed(2)}s)`, 'Pit Stop'];
-                                                    }
-                                                    return [value, name];
-                                                }}
-                                            />
-                                            <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
-                                            {pitStopData.map((data, driverIndex) => (
-                                                data.pitStops.map((stop, stopIndex) => (
-                                                    <Bar
-                                                        key={`pit-${driverIndex}-${stopIndex}-${stop.lap}`}
-                                                        dataKey={() => stop.lap}
-                                                        name={`stop-${stopIndex}`}
-                                                        fill={tireCompounds[stop.tireCompound]?.color || '#999'}
-                                                        barSize={15}
-                                                        background={{ fill: 'transparent' }}
-                                                    >
-                                                        <Cell
-                                                            key={`cell-${driverIndex}-${stopIndex}`}
-                                                            fill={tireCompounds[stop.tireCompound]?.color || '#999'}
-                                                            stroke={isDarkMode ? "#222" : "#fff"}
-                                                            strokeWidth={1}
-                                                        />
-                                                    </Bar>
-                                                ))
-                                            ))}
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                <div className="h-96 p-4 bg-gray-800 rounded-lg">
+                                    {(() => {
+                                        const data = pitStopData.filter(data => data.pitStops.length > 0);
+                                        if (data.length === 0) {
+                                            return <div className="text-center text-gray-400">No pit stop data available</div>;
+                                        }
+
+                                        // Calculate the actual race length from pit stops
+                                        const maxPitStopLap = Math.max(
+                                            ...data.flatMap(driver => driver.pitStops.map(stop => stop.lap))
+                                        );
+
+                                        // Set realistic race length (typical F1 races are 50-70 laps)
+                                        const raceLength = Math.max(maxPitStopLap + 5, 50); // Add 5 laps buffer or minimum 50
+                                        const timelineWidth = Math.min(raceLength, 70); // Cap at 70 laps for display
+
+                                        return (
+                                            <div className="relative w-full h-full">
+                                                {/* Lap scale */}
+                                                <div className="absolute top-0 left-0 right-0 h-8 border-b border-gray-600">
+                                                    <div className="relative h-full">
+                                                        {Array.from({length: Math.floor(timelineWidth/10) + 1}, (_, i) => i * 10)
+                                                            .filter(lap => lap <= timelineWidth)
+                                                            .map(lap => (
+                                                                <div
+                                                                    key={lap}
+                                                                    className="absolute top-0 h-full flex flex-col items-center"
+                                                                    style={{ left: `${(lap / timelineWidth) * 100}%` }}
+                                                                >
+                                                                    <div className="w-px h-2 bg-gray-500"></div>
+                                                                    <span className="text-xs text-gray-400 mt-1">L{lap}</span>
+                                                                </div>
+                                                            ))}
+
+                                                        {/* Race finish line */}
+                                                        <div
+                                                            className="absolute top-0 h-full flex flex-col items-center border-l-2 border-white border-dashed"
+                                                            style={{ left: `${(raceLength / timelineWidth) * 100}%` }}
+                                                        >
+                                                            <div className="text-xs text-white mt-1 bg-red-600 px-1 rounded">FINISH</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Driver timeline rows */}
+                                                <div className="mt-12 space-y-3 pb-20">
+                                                    {data.map((driver, driverIndex) => (
+                                                        <div key={driverIndex} className="relative h-10 bg-gray-700 rounded-md">
+                                                            {/* Driver name */}
+                                                            <div className="absolute left-0 top-0 h-full w-20 flex items-center justify-center bg-gray-600 rounded-l-md">
+                                <span
+                                    className="text-xs font-bold truncate px-1"
+                                    style={{ color: driver.color }}
+                                >
+                                    {driver.driver.split(' ').pop()}
+                                </span>
+                                                            </div>
+
+                                                            {/* Race timeline - only up to race finish */}
+                                                            <div className="absolute left-20 top-1 bottom-1 bg-gradient-to-r from-gray-600 to-gray-500 rounded-r-md"
+                                                                 style={{ width: `${(raceLength / timelineWidth) * (100 - (20/100*100))}%` }}>
+
+                                                                {/* Pit stops */}
+                                                                {driver.pitStops
+                                                                    .filter(stop => stop.lap <= raceLength) // Don't show stops beyond finish
+                                                                    .map((stop, stopIndex) => {
+                                                                        const position = (stop.lap / timelineWidth) * 100;
+                                                                        return (
+                                                                            <div
+                                                                                key={stopIndex}
+                                                                                className="absolute top-0 bottom-0 group z-10"
+                                                                                style={{ left: `${position / (raceLength/timelineWidth)}%` }}
+                                                                            >
+                                                                                {/* Pit stop marker */}
+                                                                                <div
+                                                                                    className="w-3 h-full rounded cursor-pointer border-2 border-white transform hover:scale-110 transition-transform shadow-lg"
+                                                                                    style={{
+                                                                                        backgroundColor: getTireCompoundColor(stop.tireCompound),
+                                                                                    }}
+                                                                                >
+                                                                                </div>
+
+                                                                                {/* Tooltip on hover */}
+                                                                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                                                                    <div className="bg-black text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                                                                                        <div className="font-bold">Lap {stop.lap}</div>
+                                                                                        <div className="capitalize">{stop.tireCompound} tires</div>
+                                                                                        <div>{stop.duration.toFixed(2)}s stop</div>
+                                                                                    </div>
+                                                                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-black"></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Legend - moved to bottom with more space */}
+                                                <div className="absolute bottom-2 left-0 right-0 h-16 border-t border-gray-600 pt-3">
+                                                    <div className="flex justify-center space-x-6 text-xs">
+                                                        {Object.entries(tireCompounds).slice(0, 5).map(([compound, data]) => (
+                                                            <div key={compound} className="flex items-center space-x-2">
+                                                                <div
+                                                                    className="w-4 h-4 rounded border-2 border-white shadow"
+                                                                    style={{ backgroundColor: data.color }}
+                                                                ></div>
+                                                                <span className="text-gray-300 capitalize font-medium">{compound}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="text-center mt-2">
+                                                        <span className="text-xs text-gray-400">• Real: Data from actual pit stop telemetry</span>
+                                                        <span className="text-xs text-gray-400 ml-4">• Inferred: Estimated from tire stint changes</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* Data Source Legend */}
+                                <div className="mt-4 text-xs text-gray-400">
+                                    <p>• <strong>Real:</strong> Data from actual pit stop telemetry</p>
+                                    <p>• <strong>Inferred:</strong> Estimated from tire stint changes</p>
+                                    {preparePitStopData().filter(data => data.pitStops.length === 0).length > 0 && (
+                                        <p className="text-yellow-400 mt-2">
+                                            ⚠️ Some drivers have no pit stop data available for this session
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Tire Compound Performance - Enhanced */}
