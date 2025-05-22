@@ -7,6 +7,7 @@ import { Card, Row, Col, Select, Button, Spin, Alert, Space, Typography } from '
 import { useTelemetryContext } from '../context/TelemetryContext';
 import { loadData } from '../utils/dataLoader';
 import WindyWeatherRadar from './WindyWeatherRadar';
+import InteractiveTrackMap from './InteractiveTrackMap';
 import { Box, MenuItem, FormControl, InputLabel } from '@mui/material';
 
 const { Title } = Typography;
@@ -2658,8 +2659,13 @@ const TelemetryVisualizations = () => {
                                 </div>
                             )}
                         </div>
-                        {/* Weather Radar Section - ADD THIS HERE */}
+                        {/* Weather Radar Section */}
                         <WindyWeatherRadar
+                            selectedCircuit={selectedCircuit}
+                            isDarkMode={isDarkMode}
+                        />
+                        {/* Interactive Track Map Section  */}
+                        <InteractiveTrackMap
                             selectedCircuit={selectedCircuit}
                             isDarkMode={isDarkMode}
                         />
