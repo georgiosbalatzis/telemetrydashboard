@@ -13,16 +13,16 @@ const { Option } = Select;
 
 // F1 team colors for 2024/2025 season
 const teamColors = {
-    "Ferrari": "#DC0000",
-    "Mercedes": "#00D2BE",
-    "Red Bull": "#0600EF",
-    "McLaren": "#FF8700",
-    "Sauber": "#469BFF",
-    "Alpine": "#0090FF",
-    "Aston Martin": "#006F62",
-    "Haas F1 Team": "#FFFFFF",
-    "RB": "#CAD2D3",
-    "Williams": "#005AFF"
+    "Ferrari":      "#D40000",  // Rosso Corsa
+    "Mercedes":     "#00A19B",  // Tiffany Green
+    "Red Bull":     "#3671C6",  // Red Bull Racing
+    "McLaren":      "#FF8000",
+    "Sauber":       "#52E252",  // Kick Sauber
+    "Alpine":       "#EA80B0",
+    "Aston Martin": "#229971",
+    "Haas F1 Team": "#B6BABD",
+    "RB":           "#6692FF",  // Racing Bulls
+    "Williams":     "#1868DB"
 };
 
 // Tire compounds data
@@ -92,6 +92,46 @@ const TelemetryVisualizations = () => {
         fetchCarData
     } = useTelemetryContext();
 
+    // Color management functions
+    const getEnhancedTeamColor = (teamName) => {
+        // When in dark mode, use even more vibrant colors for better visibility
+        const darkModeColors = {
+            "Ferrari": "#FF1E1E",      // Brighter Ferrari red
+            "Mercedes": "#00FFE0",     // Brighter Mercedes teal
+            "Red Bull": "#0F6FFF",     // Brighter Red Bull blue
+            "McLaren": "#FFA000",      // Brighter McLaren orange
+            "Sauber": "#5CFF5C",       // Brighter Sauber green
+            "Alpine": "#FF8EC0",       // Brighter Alpine pink
+            "Aston Martin": "#00FFB9", // Brighter Aston Martin green
+            "Haas F1 Team": "#FFFFFF", // Pure white for Haas
+            "RB": "#80B0FF",           // Brighter Racing Bulls blue
+            "Williams": "#2180FF"      // Brighter Williams blue
+        };
+
+        return isDarkMode && darkModeColors[teamName]
+            ? darkModeColors[teamName]
+            : teamColors[teamName] || "#999999";
+    };
+
+    // Function to get driver color with enhancements
+    const getDriverColor = (driverId) => {
+        if (!drivers[driverId]) return "#999999";
+
+        const driver = drivers[driverId];
+        // Try to use team color from teamColors constant
+        if (driver.team && teamColors[driver.team]) {
+            return getEnhancedTeamColor(driver.team);
+        }
+
+        // If driver has a team_colour property, use that
+        if (driver.team_colour) {
+            return `#${driver.team_colour}`;
+        }
+
+        // Fallback to default color or any color in the driver object
+        return driver.color || "#999999";
+    };
+
     const [circuits, setCircuits] = useState([]);
     const [sessions, setSessions] = useState([]);
     const [drivers, setDrivers] = useState({});
@@ -100,6 +140,7 @@ const TelemetryVisualizations = () => {
     const [carData, setCarData] = useState([]);
     const [pitStops, setPitStops] = useState([]);
     const [stints, setStints] = useState([]);
+    const [usingRealData, setUsingRealData] = useState(false);
 
     // Load meeting data when component mounts
     useEffect(() => {
@@ -148,24 +189,33 @@ const TelemetryVisualizations = () => {
 
                 // Convert to a map with driver_number as key and add color
                 const driversMap = driversData.reduce((acc, driver) => {
+                    // First identify the team name
+                    const teamName = driver.team_name;
+
+                    // Set the enhanced team color
+                    const enhancedColor = teamName && teamColors[teamName]
+                        ? getEnhancedTeamColor(teamName)
+                        : `#${driver.team_colour || "999999"}`;
+
                     acc[driver.driver_number] = {
                         ...driver,
-                        name: driver.full_name,
-                        team: driver.team_name,
-                        color: `#${driver.team_colour}`
+                        name: driver.full_name || `Driver ${driver.driver_number}`,
+                        team: teamName || "Unknown Team",
+                        color: enhancedColor,
+                        originalColor: `#${driver.team_colour || "999999"}` // Keep original for reference
                     };
                     return acc;
                 }, {});
 
                 setDrivers(driversMap);
-                console.log('Drivers loaded:', driversMap);
+                console.log('Drivers loaded with enhanced colors:', driversMap);
             } catch (error) {
                 console.error('Error loading driver data:', error);
             }
         };
 
         loadDriverData();
-    }, [selectedCircuit, selectedSession, fetchDrivers]);
+    }, [selectedCircuit, selectedSession, fetchDrivers, isDarkMode]);
 
     // Load lap data when drivers are selected
     useEffect(() => {
@@ -198,33 +248,74 @@ const TelemetryVisualizations = () => {
         loadLapData();
     }, [selectedCircuit, selectedSession, selectedDrivers, fetchLaps]);
 
-    // Load car data when lap changes
     useEffect(() => {
         const loadCarData = async () => {
             if (!selectedLap || !selectedDrivers.length || !selectedSession || !selectedCircuit) return;
 
             try {
-                // Get car telemetry data
-                // Note: Since the Ergast API doesn't provide this level of detail,
-                // we'll generate synthetic data
-                const chartData = prepareChartData();
+                // Try to load real car telemetry data first
+                // Initialize realCarData array BEFORE using it
+                let realCarData = [];
+
+                // For each selected driver, try to get car data
+                for (const driverId of selectedDrivers) {
+                    try {
+                        const driverCarData = await loadData('car_data', {
+                            circuit_name: selectedCircuit,
+                            session_name: selectedSession,
+                            driver_number: driverId,
+                            lap_number: selectedLap
+                        });
+
+                        if (driverCarData && driverCarData.length > 0) {
+                            console.log(`Found real car data for driver ${driverId}, lap ${selectedLap}:`, driverCarData.length, 'data points');
+
+                            // Tag each data point with the driver ID
+                            const taggedData = driverCarData.map(point => ({
+                                ...point,
+                                driver_number: driverId
+                            }));
+
+                            realCarData = [...realCarData, ...taggedData];
+                        } else {
+                            console.log(`No real car data found for driver ${driverId}, lap ${selectedLap}`);
+                        }
+                    } catch (err) {
+                        console.warn(`Error fetching car data for driver ${driverId}:`, err);
+                    }
+                }
+
+                // AFTER collecting all the data, THEN set the flag
+                // Store whether we're using real data
+                const isUsingRealData = realCarData.length > 0;
+                setUsingRealData(isUsingRealData);
+
+                // Prepare chart data, using real data when available
+                const chartData = prepareChartData(realCarData);
                 setCarData(chartData);
 
-                // Also get pit stop data
-                const pitData = await loadData('pit_stops', {
-                    circuit_name: selectedCircuit,
-                    session_name: selectedSession,
-                    driver_number: selectedDrivers
-                });
-                setPitStops(pitData || []);
+                // Only get pit stop data for race sessions
+                if (selectedSession && selectedSession.toLowerCase().includes('race')) {
+                    // Get pit stop data
+                    const pitData = await loadData('pit_stops', {
+                        circuit_name: selectedCircuit,
+                        session_name: selectedSession,
+                        driver_number: selectedDrivers
+                    });
+                    setPitStops(pitData || []);
 
-                // Get stint data
-                const stintData = await loadData('stints', {
-                    circuit_name: selectedCircuit,
-                    session_name: selectedSession,
-                    driver_number: selectedDrivers
-                });
-                setStints(stintData || []);
+                    // Get stint data
+                    const stintData = await loadData('stints', {
+                        circuit_name: selectedCircuit,
+                        session_name: selectedSession,
+                        driver_number: selectedDrivers
+                    });
+                    setStints(stintData || []);
+                } else {
+                    // Clear pit stop data for non-race sessions
+                    setPitStops([]);
+                    setStints([]);
+                }
             } catch (error) {
                 console.error('Error loading car data:', error);
             }
@@ -233,67 +324,285 @@ const TelemetryVisualizations = () => {
         loadCarData();
     }, [selectedLap, selectedDrivers, selectedSession, selectedCircuit]);
 
-    // Prepare chart data from car telemetry
-    const prepareChartData = () => {
+    // Debug driver colors
+    useEffect(() => {
+        if (selectedDrivers.length > 0) {
+            const colorDebug = selectedDrivers.map(id => ({
+                id,
+                name: drivers[id]?.name || `Driver ${id}`,
+                team: drivers[id]?.team || "Unknown",
+                color: getDriverColor(id)
+            }));
+            console.log("Chart driver colors:", colorDebug);
+        }
+    }, [selectedDrivers, drivers, isDarkMode]);
+
+    // Debug chart data
+    useEffect(() => {
+        if (carData.length > 0 && selectedDrivers.length > 0) {
+            console.log("Sample data point:", carData[0]);
+            console.log("Chart data series:",
+                selectedDrivers.map(id => `speed${id}`),
+                selectedDrivers.map(id => `throttle${id}`),
+                selectedDrivers.map(id => `brake${id}`)
+            );
+        }
+    }, [carData, selectedDrivers]);
+
+    // Updated prepareChartData function to handle real data
+    const prepareChartData = (realData = []) => {
+        console.log('Preparing chart data with real data:', realData.length > 0);
         const chartData = [];
-        console.log('Preparing chart data for:', {
-            selectedDrivers,
-            selectedLap,
-            drivers,
-            laps
-        });
 
-        // Generate synthetic data points for the lap
-        const numPoints = 50; // Number of data points per lap
-        const lapDuration = 90; // Average lap duration in seconds
+        // Check if we have real data to use
+        if (realData && realData.length > 0) {
+            // Group data by distance or time
+            const groupedData = {};
 
-        // Create base data points
-        for (let i = 0; i < numPoints; i++) {
-            const time = (i * lapDuration / numPoints).toFixed(2);
-            chartData.push({
-                index: i,
-                time: `${Math.floor(time / 60)}:${(time % 60).toFixed(2).padStart(5, '0')}`
+            // Find the common data point in the telemetry
+            // Note: Different APIs may have different data structures
+            const samplePoint = realData[0];
+            const hasDistance = 'distance' in samplePoint;
+            const hasTime = 'time' in samplePoint;
+
+            // Determine what to use for X-axis
+            const xAxisKey = hasDistance ? 'distance' : hasTime ? 'time' : 'index';
+
+            // Process real telemetry data
+            realData.forEach(point => {
+                // Use a common key to group data points from different drivers
+                const key = point[xAxisKey] || point.timestamp || point.index || 0;
+
+                // Create data point if it doesn't exist
+                if (!groupedData[key]) {
+                    groupedData[key] = {
+                        distance: point.distance || 0,
+                        time: point.time || '0:00.00',
+                        index: point.index || Object.keys(groupedData).length
+                    };
+                }
+
+                // Add driver-specific data
+                const driverId = point.driver_number;
+                if (driverId) {
+                    // Map the data to our chart keys
+
+                    // Speed data (may be in different formats)
+                    if ('speed' in point) {
+                        groupedData[key][`speed${driverId}`] = point.speed;
+                    } else if ('Speed' in point) {
+                        groupedData[key][`speed${driverId}`] = point.Speed;
+                    }
+
+                    // Throttle data (may be 0-1 or 0-100)
+                    if ('throttle' in point) {
+                        // Convert to percentage if 0-1 scale
+                        const throttleValue = point.throttle > 1 ? point.throttle : point.throttle * 100;
+                        groupedData[key][`throttle${driverId}`] = throttleValue;
+                    } else if ('Throttle' in point) {
+                        const throttleValue = point.Throttle > 1 ? point.Throttle : point.Throttle * 100;
+                        groupedData[key][`throttle${driverId}`] = throttleValue;
+                    }
+
+                    // Brake data (may be 0-1 or 0-100)
+                    if ('brake' in point) {
+                        const brakeValue = point.brake > 1 ? point.brake : point.brake * 100;
+                        groupedData[key][`brake${driverId}`] = brakeValue;
+                    } else if ('Brake' in point) {
+                        const brakeValue = point.Brake > 1 ? point.Brake : point.Brake * 100;
+                        groupedData[key][`brake${driverId}`] = brakeValue;
+                    }
+
+                    // Other telemetry data if available
+                    const dataKeys = Object.keys(point);
+
+                    // Check for tire temperature data
+                    if (dataKeys.some(k => k.includes('temp') || k.includes('Temp'))) {
+                        const tempKey = dataKeys.find(k => k.includes('temp') || k.includes('Temp'));
+                        if (tempKey) {
+                            groupedData[key][`tireTemp${driverId}`] = point[tempKey];
+                        }
+                    } else {
+                        // Generate synthetic tire temp if not available
+                        groupedData[key][`tireTemp${driverId}`] = 85 + (Math.random() * 15);
+                    }
+
+                    // Check for tire wear data
+                    if (dataKeys.some(k => k.includes('wear') || k.includes('Wear'))) {
+                        const wearKey = dataKeys.find(k => k.includes('wear') || k.includes('Wear'));
+                        if (wearKey) {
+                            groupedData[key][`tireWear${driverId}`] = point[wearKey];
+                        }
+                    } else {
+                        // Generate synthetic tire wear if not available
+                        groupedData[key][`tireWear${driverId}`] = Math.max(0, 100 - (selectedLap * 2) - (Math.random() * 5));
+                    }
+
+                    // DRS, RPM, and other data if available
+                    if ('drs' in point) {
+                        groupedData[key][`drs${driverId}`] = point.drs;
+                    }
+
+                    if ('rpm' in point || 'RPM' in point || 'engine_rpm' in point) {
+                        groupedData[key][`rpm${driverId}`] = point.rpm || point.RPM || point.engine_rpm || 0;
+                    }
+                }
+            });
+
+            // Convert grouped data to array for charts
+            chartData.push(...Object.values(groupedData));
+
+            // Sort data by distance, time, or index
+            if (hasDistance) {
+                chartData.sort((a, b) => a.distance - b.distance);
+            } else if (hasTime) {
+                chartData.sort((a, b) => {
+                    // Handle time strings or objects
+                    if (typeof a.time === 'string' && typeof b.time === 'string') {
+                        return a.time.localeCompare(b.time);
+                    }
+                    return a.index - b.index;
+                });
+            } else {
+                chartData.sort((a, b) => a.index - b.index);
+            }
+
+            console.log('Prepared real chart data:', chartData.length, 'points');
+        } else {
+            // Generate synthetic data points for the lap when no real data is available
+            console.log('Generating synthetic chart data with spiky appearance');
+            const numPoints = 50; // Number of data points per lap
+            const lapDuration = 90; // Average lap duration in seconds
+
+            // Create base data points
+            for (let i = 0; i < numPoints; i++) {
+                const time = (i * lapDuration / numPoints).toFixed(2);
+                chartData.push({
+                    index: i,
+                    distance: i * 100, // Approximate distance in meters
+                    time: `${Math.floor(time / 60)}:${(time % 60).toFixed(2).padStart(5, '0')}`
+                });
+            }
+
+            // Define more dramatic track sections with steeper transitions
+            const trackSections = [
+                { start: 0, end: 6, type: 'straight' },
+                { start: 6, end: 9, type: 'hardBraking' },  // New type for dramatic braking
+                { start: 9, end: 12, type: 'corner' },
+                { start: 12, end: 20, type: 'straight' },
+                { start: 20, end: 23, type: 'hardBraking' },
+                { start: 23, end: 27, type: 'corner' },
+                { start: 27, end: 33, type: 'straight' },
+                { start: 33, end: 36, type: 'hardBraking' },
+                { start: 36, end: 40, type: 'chicane' },
+                { start: 40, end: 50, type: 'straight' }
+            ];
+
+            // Add data for each selected driver with more dramatic variations
+            selectedDrivers.forEach(driverId => {
+                if (drivers[driverId]) {
+                    // Different base speeds for different drivers
+                    const driverIndex = parseInt(driverId) % 5;
+                    const baseSpeed = 280 - (driverIndex * 5); // Different baseline speeds
+                    const baseThrottle = 0.8 + (Math.random() * 0.2); // Base throttle between 80-100%
+
+                    // Driver style factors with more variation
+                    const driverLateBreaking = 0.7 + (((parseInt(driverId) % 10) / 10) * 0.6);
+                    const driverCornerSpeed = 0.8 + (((parseInt(driverId) % 7) / 10) * 0.4);
+                    const driverAcceleration = 0.9 + (((parseInt(driverId) % 5) / 10) * 0.3);
+
+                    // More dramatic speed profiles for each driver
+                    chartData.forEach((point, index) => {
+                        // Find current track section
+                        const currentSection = trackSections.find(
+                            section => index >= section.start && index < section.end
+                        ) || { type: 'straight' };
+
+                        // More dramatic speed variations based on track section
+                        let speedVariation = 0;
+                        let isBraking = false;
+
+                        switch (currentSection.type) {
+                            case 'straight':
+                                // Speed increases on straights with a slight wave pattern
+                                speedVariation = 40 + Math.sin(index * 0.8) * 10;
+                                break;
+                            case 'hardBraking':
+                                // Dramatic speed decrease for hard braking zones
+                                speedVariation = -70 - (Math.random() * 30);
+                                isBraking = true;
+                                break;
+                            case 'corner':
+                                // Lower speed in corners with some variation
+                                speedVariation = -50 * driverCornerSpeed - (Math.sin(index) * 10);
+                                break;
+                            case 'chicane':
+                                // Rapid changes in chicanes
+                                speedVariation = -30 + Math.sin(index * 1.5) * 25;
+                                isBraking = index % 2 === 0;
+                                break;
+                            default:
+                                speedVariation = 0;
+                        }
+
+                        // Apply driver style with larger variations
+                        const speed = Math.max(
+                            70, // Lower minimum speed for more range
+                            Math.min(
+                                330, // Higher top speed
+                                baseSpeed + speedVariation * (isBraking ? driverLateBreaking : driverAcceleration)
+                            )
+                        );
+
+                        // More dramatic throttle and brake patterns
+                        const throttle = isBraking
+                            ? Math.max(0, Math.min(30, Math.random() * 30))  // Some throttle even during braking
+                            : Math.min(100, baseThrottle * 100 * (
+                                currentSection.type === 'straight'
+                                    ? 1
+                                    : 0.6 + (driverAcceleration * 0.4)
+                            ));
+
+                        const brake = isBraking
+                            ? 70 + (Math.random() * 30) // More pronounced braking
+                            : Math.max(0, Math.min(20, (-speedVariation / 5) * driverLateBreaking));
+
+                        // Tire temperature and wear simulation with more dynamic patterns
+                        const cornerIntensity = currentSection.type === 'corner' ? 8 :
+                            currentSection.type === 'chicane' ? 6 : 0;
+
+                        const baseTemp = 85 + (Math.random() * 10);
+                        const tempVariation = Math.sin(index / numPoints * Math.PI * 2) * 10;
+                        const tireTemp = baseTemp + tempVariation + cornerIntensity;
+
+                        const baseWear = 100 - (selectedLap * 2);
+                        const cornerWear = currentSection.type === 'corner' ? 0.3 :
+                            currentSection.type === 'hardBraking' ? 0.2 : 0;
+                        const wearVariation = (Math.random() * 5) + cornerWear;
+                        const tireWear = Math.max(0, baseWear - wearVariation);
+
+                        // Add to chart data with integer values for sharper transitions
+                        point[`speed${driverId}`] = Math.floor(speed);
+                        point[`throttle${driverId}`] = Math.floor(throttle);
+                        point[`brake${driverId}`] = Math.floor(brake);
+                        point[`tireTemp${driverId}`] = Math.floor(tireTemp);
+                        point[`tireWear${driverId}`] = Math.floor(tireWear);
+                    });
+                }
+            });
+
+            // Add random DRS activation zones for straights
+            chartData.forEach((point, index) => {
+                if (index > 10 && index < 20 || index > 40) {
+                    selectedDrivers.forEach(driverId => {
+                        // Random DRS activation for some drivers on straights
+                        point[`drs${driverId}`] = Math.random() > 0.5 ? 1 : 0;
+                    });
+                }
             });
         }
 
-        // Add data for each selected driver
-        selectedDrivers.forEach(driverId => {
-            if (drivers[driverId]) {
-                const driver = drivers[driverId];
-                const baseSpeed = 250 + (Math.random() * 50); // Base speed between 250-300 km/h
-                const baseThrottle = 0.8 + (Math.random() * 0.2); // Base throttle between 80-100%
-
-                // Generate synthetic telemetry data
-                chartData.forEach((point, index) => {
-                    // Speed variation based on track position (simulating straights and corners)
-                    const speedVariation = Math.sin(index / numPoints * Math.PI * 2) * 50;
-                    const speed = Math.max(50, baseSpeed + speedVariation);
-
-                    // Throttle and brake simulation
-                    const isBraking = speedVariation < -20;
-                    const throttle = isBraking ? 0 : baseThrottle;
-                    const brake = isBraking ? 0.8 + (Math.random() * 0.2) : 0;
-
-                    // Tire temperature and wear simulation
-                    const baseTemp = 85 + (Math.random() * 10);
-                    const tempVariation = Math.sin(index / numPoints * Math.PI) * 10;
-                    const tireTemp = baseTemp + tempVariation;
-
-                    const baseWear = 100 - (selectedLap * 2);
-                    const wearVariation = Math.random() * 5;
-                    const tireWear = Math.max(0, baseWear - wearVariation);
-
-                    // Add driver-specific data
-                    point[`speed${driverId}`] = Math.round(speed);
-                    point[`throttle${driverId}`] = Math.round(throttle * 100);
-                    point[`brake${driverId}`] = Math.round(brake * 100);
-                    point[`tireTemp${driverId}`] = Math.round(tireTemp);
-                    point[`tireWear${driverId}`] = Math.round(tireWear);
-                });
-            }
-        });
-
-        console.log('Prepared chart data:', chartData);
+        // Return the processed chart data
         return chartData;
     };
 
@@ -508,7 +817,7 @@ const TelemetryVisualizations = () => {
         selectedDrivers.forEach(driverId => {
             const driverPitStops = pitStops.filter(pit => pit.driver_number === driverId);
             const driverName = drivers[driverId]?.name || `Driver ${driverId}`;
-            const driverColor = drivers[driverId]?.color || "#999999";
+            const driverColor = getDriverColor(driverId);
 
             // If no real pit stop data, generate synthetic data
             const pitStopsToUse = driverPitStops.length > 0 ? driverPitStops : generateSyntheticPitStops(driverId);
@@ -595,6 +904,47 @@ const TelemetryVisualizations = () => {
                 ];
             default:
                 return [];
+        }
+    };
+
+    // Create a reusable chart theme object
+    const chartTheme = {
+        cartesianGrid: {
+            strokeDasharray: "3 3",
+            opacity: 0.2, // Increase from 0.1 for better visibility
+            stroke: isDarkMode ? "#555" : "#ccc" // Darker grid in dark mode
+        },
+        xAxis: {
+            tick: { fill: isDarkMode ? "#f0f0f0" : "#333" },
+            label: { fill: isDarkMode ? "#f0f0f0" : "#333" }
+        },
+        yAxis: {
+            tick: { fill: isDarkMode ? "#f0f0f0" : "#333" },
+            label: { fill: isDarkMode ? "#f0f0f0" : "#333" }
+        },
+        tooltip: {
+            contentStyle: {
+                backgroundColor: isDarkMode ? "#333" : "#fff",
+                border: "none",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                color: isDarkMode ? "#f0f0f0" : "#333"
+            }
+        },
+        legend: {
+            wrapperStyle: {
+                color: isDarkMode ? "#f0f0f0" : "#333",
+                paddingTop: "10px"
+            }
+        },
+        lineStyle: {
+            strokeWidth: 2.5, // Thicker lines
+            dot: false,
+            activeDot: {
+                r: 7,
+                strokeWidth: 1.5,
+                stroke: isDarkMode ? "#222" : "#fff"
+            }
         }
     };
 
@@ -773,7 +1123,7 @@ const TelemetryVisualizations = () => {
 
                                         return (
                                             <tr key={driverId} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
-                                                <td className="p-2 font-medium" style={{ color: drivers[driverId]?.color || '#999' }}>
+                                                <td className="p-2 font-medium" style={{ color: getDriverColor(driverId) }}>
                                                     {drivers[driverId]?.name || `Driver ${driverId}`}
                                                 </td>
                                                 <td className="p-2 text-center">
@@ -829,43 +1179,81 @@ const TelemetryVisualizations = () => {
                             <p>Selected lap: <span className="font-mono bg-gray-800 px-1 rounded">{selectedLap || 'None'}</span></p>
                         </div>
                     </div>
+                    {/* Error notification for data loading issues */}
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-500 bg-opacity-20 border border-red-500 rounded-md text-red-300">
+                            <h4 className="font-bold mb-1">Error Loading Data</h4>
+                            <p>{error}</p>
+                        </div>
+                    )}
                 </div>
                 {/* Charts Section */}
                 {chartData.length > 0 && (
                     <div className="space-y-8">
-                        {/* Speed Chart */}
+                        {/* Data source indicator */}
+                        <div className="flex justify-between items-center mb-4">
+                            <div></div>
+                            <div className="text-xs text-gray-400">
+                                {usingRealData ? (
+                                    <span className="text-cyan-400">Using real telemetry data</span>
+                                ) : (
+                                    <span>Using synthetic telemetry simulation</span>
+                                )}
+                            </div>
+                        </div>
+                        {/* Speed Chart - Enhanced with Spiky Appearance */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Speed Comparison</h3>
+                            <h3 className="text-xl font-bold mb-4 flex items-center">
+                                <span>Speed Comparison</span>
+                                {usingRealData && (
+                                    <span className="text-xs text-cyan-400 ml-2 font-normal">(Using Real Telemetry)</span>
+                                )}
+                            </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                                        <XAxis dataKey="time" />
-                                        <YAxis
-                                            label={{ value: 'Speed (km/h)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-                                            domain={[0, 350]}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: isDarkMode ? '#222' : '#fff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                        <CartesianGrid {...chartTheme.cartesianGrid} />
+                                        <XAxis
+                                            dataKey={usingRealData && chartData[0]?.distance ? "distance" : "time"}
+                                            tick={chartTheme.xAxis.tick}
+                                            label={{
+                                                value: usingRealData && chartData[0]?.distance ? 'Distance (m)' : 'Time',
+                                                position: 'insideBottom',
+                                                offset: -5,
+                                                fill: chartTheme.yAxis.label.fill
                                             }}
                                         />
-                                        <Legend />
+                                        <YAxis
+                                            label={{
+                                                value: 'Speed (km/h)',
+                                                angle: -90,
+                                                position: 'insideLeft',
+                                                style: { textAnchor: 'middle' },
+                                                fill: chartTheme.yAxis.label.fill
+                                            }}
+                                            domain={[0, 'auto']}
+                                            tick={chartTheme.yAxis.tick}
+                                        />
+                                        <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                                        <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
                                         {selectedDrivers.map((driverId, index) => (
-                                            drivers[driverId] && (
+                                            drivers[driverId] && chartData.some(point => `speed${driverId}` in point) && (
                                                 <Line
                                                     key={driverId}
                                                     type="monotone"
                                                     dataKey={`speed${driverId}`}
                                                     name={`${drivers[driverId].name} Speed`}
-                                                    stroke={drivers[driverId].color}
+                                                    stroke={getDriverColor(driverId)}
+                                                    strokeWidth={2.5}
                                                     dot={false}
-                                                    strokeWidth={2}
-                                                    activeDot={{ r: 6 }}
+                                                    activeDot={{ r: 6, strokeWidth: 1, stroke: isDarkMode ? "#222" : "#fff" }}
                                                     strokeDasharray={index % 2 === 1 ? "5 5" : undefined}
+                                                    connectNulls={true}
+                                                    // The settings below create a more pronounced "spiky" look
+                                                    isAnimationActive={true}
+                                                    animationDuration={500}
+                                                    // Use 'linear' instead of 'monotone' for sharper corners
+                                                    type="linear"
                                                 />
                                             )
                                         ))}
@@ -874,47 +1262,69 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
-                        {/* Throttle/Brake Chart */}
+                        {/* Throttle/Brake Chart - Enhanced with Real Data Handling */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Throttle & Brake Comparison</h3>
+                            <h3 className="text-xl font-bold mb-4 flex items-center">
+                                <span>Throttle & Brake Comparison</span>
+                                {usingRealData && (
+                                    <span className="text-xs text-cyan-400 ml-2 font-normal">(Using Real Telemetry)</span>
+                                )}
+                            </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                                        <XAxis dataKey="time" />
-                                        <YAxis
-                                            label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-                                            domain={[0, 100]}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: isDarkMode ? '#222' : '#fff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                        <CartesianGrid {...chartTheme.cartesianGrid} />
+                                        <XAxis
+                                            dataKey={usingRealData && chartData[0]?.distance ? "distance" : "time"}
+                                            tick={chartTheme.xAxis.tick}
+                                            label={{
+                                                value: usingRealData && chartData[0]?.distance ? 'Distance (m)' : 'Time',
+                                                position: 'insideBottom',
+                                                offset: -5,
+                                                fill: chartTheme.yAxis.label.fill
                                             }}
                                         />
-                                        <Legend />
+                                        <YAxis
+                                            label={{
+                                                value: 'Percentage (%)',
+                                                angle: -90,
+                                                position: 'insideLeft',
+                                                style: { textAnchor: 'middle' },
+                                                fill: chartTheme.yAxis.label.fill
+                                            }}
+                                            domain={[0, 100]}
+                                            tick={chartTheme.yAxis.tick}
+                                        />
+                                        <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                                        <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
                                         {selectedDrivers.map(driverId => (
                                             drivers[driverId] && (
-                                                <React.Fragment key={`throttle-${driverId}`}>
-                                                    <Line
-                                                        type="monotone"
-                                                        dataKey={`throttle${driverId}`}
-                                                        name={`${drivers[driverId].name} Throttle`}
-                                                        stroke={`${drivers[driverId].color}99`}
-                                                        dot={false}
-                                                        strokeWidth={2}
-                                                    />
-                                                    <Line
-                                                        type="monotone"
-                                                        dataKey={`brake${driverId}`}
-                                                        name={`${drivers[driverId].name} Brake`}
-                                                        stroke={`${drivers[driverId].color}`}
-                                                        dot={false}
-                                                        strokeWidth={2}
-                                                        strokeDasharray="5 5"
-                                                    />
+                                                <React.Fragment key={`controls-${driverId}`}>
+                                                    {chartData.some(point => `throttle${driverId}` in point) && (
+                                                        <Line
+                                                            type="monotone"
+                                                            dataKey={`throttle${driverId}`}
+                                                            name={`${drivers[driverId].name} Throttle`}
+                                                            stroke={getDriverColor(driverId)}
+                                                            dot={chartTheme.lineStyle.dot}
+                                                            strokeWidth={chartTheme.lineStyle.strokeWidth}
+                                                            activeDot={chartTheme.lineStyle.activeDot}
+                                                            connectNulls={true}
+                                                        />
+                                                    )}
+                                                    {chartData.some(point => `brake${driverId}` in point) && (
+                                                        <Line
+                                                            type="monotone"
+                                                            dataKey={`brake${driverId}`}
+                                                            name={`${drivers[driverId].name} Brake`}
+                                                            stroke={getDriverColor(driverId)}
+                                                            dot={chartTheme.lineStyle.dot}
+                                                            strokeWidth={chartTheme.lineStyle.strokeWidth - 0.5}
+                                                            strokeDasharray="5 5"
+                                                            strokeOpacity={0.8}
+                                                            connectNulls={true}
+                                                        />
+                                                    )}
                                                 </React.Fragment>
                                             )
                                         ))}
@@ -923,39 +1333,58 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
-                        {/* Tire Temperature Chart (Synthetic data for demo) */}
+                        {/* Tire Temperature Chart - Enhanced with Real Data Handling */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Tire Temperature (Estimated)</h3>
+                            <h3 className="text-xl font-bold mb-4 flex items-center">
+                                <span>Tire Temperature (Estimated)</span>
+                                {usingRealData && (
+                                    <span className="text-xs text-cyan-400 ml-2 font-normal">
+                {chartData.some(point => Object.keys(point).some(key => key.includes('tireTemp')))
+                    ? "(Using Real Telemetry)"
+                    : "(Using Synthetic Data)"}
+            </span>
+                                )}
+                            </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                                        <XAxis dataKey="time" />
-                                        <YAxis
-                                            label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-                                            domain={[60, 120]}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: isDarkMode ? '#222' : '#fff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                        <CartesianGrid {...chartTheme.cartesianGrid} />
+                                        <XAxis
+                                            dataKey={usingRealData && chartData[0]?.distance ? "distance" : "time"}
+                                            tick={chartTheme.xAxis.tick}
+                                            label={{
+                                                value: usingRealData && chartData[0]?.distance ? 'Distance (m)' : 'Time',
+                                                position: 'insideBottom',
+                                                offset: -5,
+                                                fill: chartTheme.yAxis.label.fill
                                             }}
                                         />
-                                        <Legend />
+                                        <YAxis
+                                            label={{
+                                                value: 'Temperature (°C)',
+                                                angle: -90,
+                                                position: 'insideLeft',
+                                                style: { textAnchor: 'middle' },
+                                                fill: chartTheme.yAxis.label.fill
+                                            }}
+                                            domain={[60, 120]}
+                                            tick={chartTheme.yAxis.tick}
+                                        />
+                                        <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                                        <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
                                         {selectedDrivers.map((driverId, index) => (
-                                            drivers[driverId] && (
+                                            drivers[driverId] && chartData.some(point => `tireTemp${driverId}` in point) && (
                                                 <Line
                                                     key={driverId}
                                                     type="monotone"
                                                     dataKey={`tireTemp${driverId}`}
                                                     name={`${drivers[driverId].name} Tire Temp`}
-                                                    stroke={drivers[driverId].color}
-                                                    dot={false}
-                                                    strokeWidth={2}
-                                                    activeDot={{ r: 6 }}
+                                                    stroke={getDriverColor(driverId)}
+                                                    dot={chartTheme.lineStyle.dot}
+                                                    strokeWidth={chartTheme.lineStyle.strokeWidth}
+                                                    activeDot={chartTheme.lineStyle.activeDot}
                                                     strokeDasharray={index % 2 === 1 ? "5 5" : undefined}
+                                                    connectNulls={true}
                                                 />
                                             )
                                         ))}
@@ -964,39 +1393,58 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
-                        {/* Tire Wear Chart (Synthetic data for demo) */}
+                        {/* Tire Wear Chart - Enhanced with Real Data Handling */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Tire Wear (Estimated)</h3>
+                            <h3 className="text-xl font-bold mb-4 flex items-center">
+                                <span>Tire Wear (Estimated)</span>
+                                {usingRealData && (
+                                    <span className="text-xs text-cyan-400 ml-2 font-normal">
+                {chartData.some(point => Object.keys(point).some(key => key.includes('tireWear')))
+                    ? "(Using Real Telemetry)"
+                    : "(Using Synthetic Data)"}
+            </span>
+                                )}
+                            </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                                        <XAxis dataKey="time" />
-                                        <YAxis
-                                            label={{ value: 'Tire Life (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-                                            domain={[0, 100]}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: isDarkMode ? '#222' : '#fff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                        <CartesianGrid {...chartTheme.cartesianGrid} />
+                                        <XAxis
+                                            dataKey={usingRealData && chartData[0]?.distance ? "distance" : "time"}
+                                            tick={chartTheme.xAxis.tick}
+                                            label={{
+                                                value: usingRealData && chartData[0]?.distance ? 'Distance (m)' : 'Time',
+                                                position: 'insideBottom',
+                                                offset: -5,
+                                                fill: chartTheme.yAxis.label.fill
                                             }}
                                         />
-                                        <Legend />
+                                        <YAxis
+                                            label={{
+                                                value: 'Tire Life (%)',
+                                                angle: -90,
+                                                position: 'insideLeft',
+                                                style: { textAnchor: 'middle' },
+                                                fill: chartTheme.yAxis.label.fill
+                                            }}
+                                            domain={[0, 100]}
+                                            tick={chartTheme.yAxis.tick}
+                                        />
+                                        <Tooltip contentStyle={chartTheme.tooltip.contentStyle} />
+                                        <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
                                         {selectedDrivers.map((driverId, index) => (
-                                            drivers[driverId] && (
+                                            drivers[driverId] && chartData.some(point => `tireWear${driverId}` in point) && (
                                                 <Line
                                                     key={driverId}
                                                     type="monotone"
                                                     dataKey={`tireWear${driverId}`}
                                                     name={`${drivers[driverId].name} Tire Wear`}
-                                                    stroke={drivers[driverId].color}
-                                                    dot={false}
-                                                    strokeWidth={2}
-                                                    activeDot={{ r: 6 }}
+                                                    stroke={getDriverColor(driverId)}
+                                                    dot={chartTheme.lineStyle.dot}
+                                                    strokeWidth={chartTheme.lineStyle.strokeWidth}
+                                                    activeDot={chartTheme.lineStyle.activeDot}
                                                     strokeDasharray={index % 2 === 1 ? "5 5" : undefined}
+                                                    connectNulls={true}
                                                 />
                                             )
                                         ))}
@@ -1005,131 +1453,170 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
-                        {/* Pit Stop Strategy Section */}
-                        <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                            <h3 className="text-xl font-bold mb-4">Pit Stop Strategy</h3>
+                        {/* Pit Stop Strategy Section - Enhanced */}
+                        {selectedSession && selectedSession.toLowerCase().includes('race') && (
+                            <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                                <h3 className="text-xl font-bold mb-4">Pit Stop Strategy</h3>
 
-                            <div className="overflow-x-auto mb-6">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                    <tr className="border-b border-gray-700">
-                                        <th className="text-left p-2">Driver</th>
-                                        <th className="p-2">Strategy</th>
-                                        <th className="p-2">Stops</th>
-                                        <th className="p-2">Total Pit Time</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    {pitStopData.map((data, index) => (
-                                        <tr key={index} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
-                                            <td className="p-2 font-medium" style={{ color: data.color }}>
-                                                {data.driver}
-                                            </td>
-                                            <td className="p-2">
-                                                <div className="flex items-center">
-                                                    {data.pitStops.map((stop, i) => (
-                                                        <React.Fragment key={`stop-${i}-${stop.lap}`}>
-                                                            {i > 0 && <span className="mx-1">→</span>}
-                                                            <div
-                                                                className="w-4 h-4 rounded-full"
-                                                                style={{ backgroundColor: tireCompounds[stop.tireCompound]?.color || '#999', border: '1px solid #666' }}
-                                                                title={`${stop.tireCompound?.charAt(0).toUpperCase() + stop.tireCompound?.slice(1) || 'Unknown'} (Lap ${stop.lap})`}
-                                                            ></div>
-                                                        </React.Fragment>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td className="p-2 text-center">{data.stops}</td>
-                                            <td className="p-2 text-center">{data.totalPitTime.toFixed(3)}s</td>
+                                <div className="overflow-x-auto mb-6">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                        <tr className="border-b border-gray-700">
+                                            <th className="text-left p-2">Driver</th>
+                                            <th className="p-2">Strategy</th>
+                                            <th className="p-2">Stops</th>
+                                            <th className="p-2">Total Pit Time</th>
                                         </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pit Stop Timeline Visualization */}
-                            <h4 className="text-lg font-bold mb-2">Pit Stop Timeline</h4>
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        layout="vertical"
-                                        data={pitStopData}
-                                        margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" opacity={0.1} horizontal={false} />
-                                        <XAxis type="number" domain={[0, 70]} label={{ value: 'Lap Number', position: 'insideBottom', offset: -5 }} />
-                                        <YAxis type="category" dataKey="driver" width={80} />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: isDarkMode ? '#222' : '#fff',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                            }}
-                                            formatter={(value, name, props) => {
-                                                if (name === 'stop') {
-                                                    const stop = pitStopData[props.index].pitStops[value];
-                                                    return [`Lap ${stop.lap}: ${stop.tireCompound} tires (${stop.duration.toFixed(2)}s)`, 'Pit Stop'];
-                                                }
-                                                return [value, name];
-                                            }}
-                                        />
-                                        <Legend />
-                                        {pitStopData.map((data, driverIndex) => (
-                                            data.pitStops.map((stop, stopIndex) => (
-                                                <Bar
-                                                    key={`pit-${driverIndex}-${stopIndex}-${stop.lap}`}
-                                                    dataKey={() => stop.lap}
-                                                    name={`stop-${stopIndex}`}
-                                                    fill={tireCompounds[stop.tireCompound]?.color || '#999'}
-                                                    barSize={15}
-                                                    background={{ fill: 'transparent' }}
-                                                >
-                                                    <Cell key={`cell-${driverIndex}-${stopIndex}`} fill={tireCompounds[stop.tireCompound]?.color || '#999'} />
-                                                </Bar>
-                                            ))
+                                        </thead>
+                                        <tbody>
+                                        {pitStopData.map((data, index) => (
+                                            <tr key={index} className={`${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-300'}`}>
+                                                <td className="p-2 font-medium" style={{ color: data.color }}>
+                                                    {data.driver}
+                                                </td>
+                                                <td className="p-2">
+                                                    <div className="flex items-center">
+                                                        {data.pitStops.map((stop, i) => (
+                                                            <React.Fragment key={`stop-${i}-${stop.lap}`}>
+                                                                {i > 0 && <span className="mx-1">→</span>}
+                                                                <div
+                                                                    className="w-4 h-4 rounded-full"
+                                                                    style={{
+                                                                        backgroundColor: tireCompounds[stop.tireCompound]?.color || '#999',
+                                                                        border: '1px solid #666',
+                                                                        boxShadow: isDarkMode ? '0 0 3px rgba(255,255,255,0.3)' : '0 0 3px rgba(0,0,0,0.3)'
+                                                                    }}
+                                                                    title={`${stop.tireCompound?.charAt(0).toUpperCase() + stop.tireCompound?.slice(1) || 'Unknown'} (Lap ${stop.lap})`}
+                                                                ></div>
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="p-2 text-center">{data.stops}</td>
+                                                <td className="p-2 text-center">{data.totalPitTime.toFixed(3)}s</td>
+                                            </tr>
                                         ))}
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
+                                        </tbody>
+                                    </table>
+                                </div>
 
-                            {/* Tire Compound Performance */}
-                            <h4 className="text-lg font-bold mt-6 mb-2">Tire Compound Performance</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
-                                {Object.entries(tireCompounds).map(([name, data]) => (
-                                    <div key={`tire-${name}`} className={`p-3 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'} flex flex-col items-center`}>
-                                        <div className="w-6 h-6 rounded-full mb-2" style={{ backgroundColor: data.color, border: '1px solid #666' }}></div>
-                                        <h5 className="font-bold capitalize">{name}</h5>
-                                        <div className="w-full mt-2 space-y-1">
-                                            <div className="flex justify-between text-xs">
-                                                <span>Grip:</span>
-                                                <div className="w-16 bg-gray-700 rounded-full h-2">
-                                                    <div
-                                                        className="bg-green-500 h-2 rounded-full"
-                                                        style={{ width: `${data.grip * 100}%` }}
-                                                    ></div>
+                                {/* Pit Stop Timeline Visualization - Enhanced */}
+                                <h4 className="text-lg font-bold mb-2">Pit Stop Timeline</h4>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            layout="vertical"
+                                            data={pitStopData}
+                                            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                                        >
+                                            <CartesianGrid
+                                                strokeDasharray="3 3"
+                                                opacity={0.2}
+                                                horizontal={false}
+                                                stroke={isDarkMode ? "#555" : "#ccc"}
+                                            />
+                                            <XAxis
+                                                type="number"
+                                                domain={[0, 70]}
+                                                label={{
+                                                    value: 'Lap Number',
+                                                    position: 'insideBottom',
+                                                    offset: -5,
+                                                    fill: chartTheme.xAxis.label.fill
+                                                }}
+                                                tick={chartTheme.xAxis.tick}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="driver"
+                                                width={80}
+                                                tick={chartTheme.yAxis.tick}
+                                            />
+                                            <Tooltip
+                                                contentStyle={chartTheme.tooltip.contentStyle}
+                                                formatter={(value, name, props) => {
+                                                    if (name === 'stop') {
+                                                        const stop = pitStopData[props.index].pitStops[value];
+                                                        return [`Lap ${stop.lap}: ${stop.tireCompound} tires (${stop.duration.toFixed(2)}s)`, 'Pit Stop'];
+                                                    }
+                                                    return [value, name];
+                                                }}
+                                            />
+                                            <Legend wrapperStyle={chartTheme.legend.wrapperStyle} />
+                                            {pitStopData.map((data, driverIndex) => (
+                                                data.pitStops.map((stop, stopIndex) => (
+                                                    <Bar
+                                                        key={`pit-${driverIndex}-${stopIndex}-${stop.lap}`}
+                                                        dataKey={() => stop.lap}
+                                                        name={`stop-${stopIndex}`}
+                                                        fill={tireCompounds[stop.tireCompound]?.color || '#999'}
+                                                        barSize={15}
+                                                        background={{ fill: 'transparent' }}
+                                                    >
+                                                        <Cell
+                                                            key={`cell-${driverIndex}-${stopIndex}`}
+                                                            fill={tireCompounds[stop.tireCompound]?.color || '#999'}
+                                                            stroke={isDarkMode ? "#222" : "#fff"}
+                                                            strokeWidth={1}
+                                                        />
+                                                    </Bar>
+                                                ))
+                                            ))}
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Tire Compound Performance - Enhanced */}
+                                <h4 className="text-lg font-bold mt-6 mb-2">Tire Compound Performance</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
+                                    {Object.entries(tireCompounds).map(([name, data]) => (
+                                        <div
+                                            key={`tire-${name}`}
+                                            className={`p-3 rounded-lg ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'} flex flex-col items-center`}
+                                            style={{
+                                                boxShadow: isDarkMode ? `0 4px 12px rgba(${name === 'soft' ? '255,0,0' : name === 'medium' ? '255,204,0' : name === 'hard' ? '255,255,255' : name === 'intermediate' ? '0,255,0' : '0,0,255'},0.1)` : 'none'
+                                            }}
+                                        >
+                                            <div
+                                                className="w-6 h-6 rounded-full mb-2"
+                                                style={{
+                                                    backgroundColor: data.color,
+                                                    border: '1px solid #666',
+                                                    boxShadow: isDarkMode ? '0 0 10px rgba(255,255,255,0.2)' : '0 0 5px rgba(0,0,0,0.2)'
+                                                }}
+                                            ></div>
+                                            <h5 className="font-bold capitalize">{name}</h5>
+                                            <div className="w-full mt-2 space-y-1">
+                                                <div className="flex justify-between text-xs">
+                                                    <span>Grip:</span>
+                                                    <div className="w-16 bg-gray-700 rounded-full h-2">
+                                                        <div
+                                                            className="bg-green-500 h-2 rounded-full"
+                                                            style={{ width: `${data.grip * 100}%` }}
+                                                        ></div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span>Durability:</span>
-                                                <div className="w-16 bg-gray-700 rounded-full h-2">
-                                                    <div
-                                                        className="bg-blue-500 h-2 rounded-full"
-                                                        style={{ width: `${data.durability * 100}%` }}
-                                                    ></div>
+                                                <div className="flex justify-between text-xs">
+                                                    <span>Durability:</span>
+                                                    <div className="w-16 bg-gray-700 rounded-full h-2">
+                                                        <div
+                                                            className="bg-blue-500 h-2 rounded-full"
+                                                            style={{ width: `${data.durability * 100}%` }}
+                                                        ></div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex justify-between text-xs">
-                                                <span>Optimal:</span>
-                                                <span>{data.optimal_temp}°C</span>
+                                                <div className="flex justify-between text-xs">
+                                                    <span>Optimal:</span>
+                                                    <span>{data.optimal_temp}°C</span>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Weather Impact Analysis */}
+                        {/* Weather Impact Analysis - Enhanced */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                             <h3 className="text-xl font-bold mb-4">Weather Impact Analysis</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

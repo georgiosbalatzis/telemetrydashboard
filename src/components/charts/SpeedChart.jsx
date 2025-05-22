@@ -9,7 +9,7 @@ function SpeedChart() {
     selectedDrivers,
     selectedLap,
     drivers,
-    isDarkMode
+    isDarkMode // Make sure you get this from context
   } = useTelemetryContext();
 
   // Process data for the chart
@@ -18,30 +18,30 @@ function SpeedChart() {
   // Prepare lines configuration
   const lines = selectedDrivers.map(driverId => ({
     dataKey: `speed_${driverId}`,
-    name: `Driver ${driverId}`,
-    color: drivers[driverId]?.color || '#000000'
+    name: drivers[driverId]?.name || `Driver ${driverId}`,
+    color: drivers[driverId]?.color || '#999999'
   }));
 
   if (!chartData.length) {
     return (
-      <div className="text-center p-4">
-        No speed data available for the selected drivers and lap
-      </div>
+        <div className="text-center p-4">
+          No speed data available for the selected drivers and lap
+        </div>
     );
   }
 
   return (
-    <TelemetryChart
-      data={chartData}
-      lines={lines}
-      xDataKey="distance"
-      title="Speed Comparison"
-      xAxisLabel="Distance (m)"
-      yAxisLabel="Speed (km/h)"
-      height={400}
-      isDarkMode={isDarkMode}
-    />
+      <TelemetryChart
+          data={chartData}
+          lines={lines}
+          xDataKey="distance"
+          title="Speed Comparison"
+          xAxisLabel="Distance (m)"
+          yAxisLabel="Speed (km/h)"
+          height={400}
+          isDarkMode={isDarkMode} // Pass this prop
+      />
   );
 }
 
-export default SpeedChart; 
+export default SpeedChart;
