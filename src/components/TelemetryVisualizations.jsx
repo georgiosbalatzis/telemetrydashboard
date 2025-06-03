@@ -2084,6 +2084,30 @@ const TelemetryVisualizations = () => {
                             </div>
                         </div>
 
+
+                        {/* Enhanced Data source indicator */}
+                        <div className="flex justify-between items-center mb-4">
+                            <div></div>
+                            <div className="text-xs text-gray-400">
+                                {usingRealData ? (
+                                    <div className="flex items-center space-x-4">
+                                        <span className="text-cyan-400">✅ Using real telemetry data</span>
+                                        <div className="text-xs">
+                                            Speed: {chartData.some(point => Object.keys(point).some(key => key.includes('speed'))) ? '✅ Real' : '❌ Synthetic'} |
+                                            Throttle: {chartData.some(point => Object.keys(point).some(key => key.includes('throttle'))) ? '✅ Real' : '❌ Synthetic'} |
+                                            Brake: {chartData.some(point => Object.keys(point).some(key => key.includes('brake'))) ? '✅ Real' : '❌ Synthetic'}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center space-x-2">
+                                        <span>❌ Using synthetic telemetry simulation</span>
+                                        <span className="text-yellow-400">(Realistic but not real data)</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+
                         {/* Tire Temperature Chart - Enhanced with Real Data Handling */}
                         <div className={`p-6 rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                             <h3 className="text-xl font-bold mb-4 flex items-center">
